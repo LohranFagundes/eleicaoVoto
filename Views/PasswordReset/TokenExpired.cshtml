@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "Token Expirado";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark text-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Token Expirado
+                    </h4>
+                </div>
+                <div class="card-body text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-clock fa-4x text-warning"></i>
+                    </div>
+                    
+                    <h5 class="text-warning mb-3">Link de Redefinição Expirado</h5>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle me-2"></i>
+                        O link para redefinir sua senha expirou ou é inválido.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <p class="text-muted">
+                            Por motivos de segurança, os links de redefinição de senha têm validade limitada.
+                        </p>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            @ViewBag.ErrorMessage
+                        </div>
+                    }
+                    
+                    <div class="mt-4">
+                        <p class="text-muted">
+                            <strong>Para redefinir sua senha:</strong>
+                        </p>
+                        <ol class="text-start text-muted">
+                            <li>Entre em contato com o administrador do sistema</li>
+                            <li>Solicite um novo link de redefinição de senha</li>
+                            <li>Verifique seu email para o novo link</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="@Url.Action("Login", "Vote")" class="btn btn-primary">
+                            <i class="fas fa-arrow-left me-2"></i>Voltar ao Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Sua segurança é nossa prioridade.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>

@@ -1,0 +1,2100 @@
+{
+	"info": {
+		"_postman_id": "election-api-collection-v1.2.1",
+		"name": "Election API Collection v1.2.1",
+		"description": "Collection completa da API do Sistema de Eleições v1.2.1 - Endpoints testados e funcionais com auto-gerenciamento de tokens",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "election-api"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// 🔄 Global Pre-request Script - Auto Token Management",
+					"// Automatically checks token expiry and manages authentication",
+					"",
+					"const currentTime = new Date().getTime();",
+					"const adminTokenExpiry = pm.environment.get('admin_token_expiry');",
+					"const voterTokenExpiry = pm.environment.get('voter_token_expiry');",
+					"const adminToken = pm.environment.get('admin_token');",
+					"const voterToken = pm.environment.get('voter_token');",
+					"",
+					"// Check if admin token is expired",
+					"if (adminToken && adminTokenExpiry && currentTime > parseInt(adminTokenExpiry)) {",
+					"    console.log('⚠️ Admin token expired, clearing...');",
+					"    pm.environment.unset('admin_token');",
+					"    pm.environment.unset('admin_token_expiry');",
+					"    pm.environment.unset('current_user_id');",
+					"    pm.environment.unset('current_user_role');",
+					"    pm.environment.unset('current_user_name');",
+					"}",
+					"",
+					"// Check if voter token is expired",
+					"if (voterToken && voterTokenExpiry && currentTime > parseInt(voterTokenExpiry)) {",
+					"    console.log('⚠️ Voter token expired, clearing...');",
+					"    pm.environment.unset('voter_token');",
+					"    pm.environment.unset('voter_token_expiry');",
+					"    pm.environment.unset('voter_id');",
+					"    pm.environment.unset('voter_name');",
+					"    pm.environment.unset('voter_cpf');",
+					"}",
+					"",
+					"// Auto-set Authorization header based on endpoint",
+					"const url = pm.request.url.toString();",
+					"const isAuthEndpoint = url.includes('/api/auth/');",
+					"const isVoterEndpoint = url.includes('/voter/') || url.includes('/vote');",
+					"",
+					"if (!isAuthEndpoint) {",
+					"    const currentAdminToken = pm.environment.get('admin_token');",
+					"    const currentVoterToken = pm.environment.get('voter_token');",
+					"    ",
+					"    if (isVoterEndpoint && currentVoterToken) {",
+					"        pm.request.headers.add({",
+					"            key: 'Authorization',",
+					"            value: `Bearer ${currentVoterToken}`",
+					"        });",
+					"        console.log('🗳️ Using voter token for authentication');",
+					"    } else if (currentAdminToken) {",
+					"        pm.request.headers.add({",
+					"            key: 'Authorization',",
+					"            value: `Bearer ${currentAdminToken}`",
+					"        });",
+					"        console.log('🔐 Using admin token for authentication');",
+					"    } else {",
+					"        console.log('⚠️ No valid token available. Login required.');",
+					"    }",
+					"}",
+					"",
+					"// Set base URL if not set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:5000');",
+					"    console.log('🌐 Base URL set to default: http://localhost:5000');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// 🔄 Global Test Script - Response Analysis and Token Management",
+					"// Automatically handles responses and manages tokens",
+					"",
+					"const responseTime = pm.response.responseTime;",
+					"const statusCode = pm.response.code;",
+					"const url = pm.request.url.toString();",
+					"",
+					"// Performance logging",
+					"if (responseTime > 5000) {",
+					"    console.log(`⚠️ Slow response: ${responseTime}ms for ${url}`);",
+					"} else if (responseTime > 2000) {",
+					"    console.log(`🟡 Moderate response: ${responseTime}ms for ${url}`);",
+					"} else {",
+					"    console.log(`✅ Fast response: ${responseTime}ms for ${url}`);",
+					"}",
+					"",
+					"// Handle authentication errors",
+					"if (statusCode === 401) {",
+					"    console.log('🚫 Authentication failed - Token may be expired');",
+					"    console.log('💡 Try running Admin Login or Voter Login first');",
+					"} else if (statusCode === 403) {",
+					"    console.log('🚫 Access forbidden - Insufficient permissions');",
+					"} else if (statusCode >= 400 && statusCode < 500) {",
+					"    console.log(`⚠️ Client error: ${statusCode}`);",
+					"} else if (statusCode >= 500) {",
+					"    console.log(`💥 Server error: ${statusCode}`);",
+					"} else if (statusCode >= 200 && statusCode < 300) {",
+					"    console.log(`✅ Success: ${statusCode}`);",
+					"}",
+					"",
+					"// Auto-save IDs from successful creation responses",
+					"if ((statusCode === 200 || statusCode === 201) && pm.response.json) {",
+					"    try {",
+					"        const responseJson = pm.response.json();",
+					"        ",
+					"        // Save created entity IDs automatically",
+					"        if (responseJson.success && responseJson.data && responseJson.data.id) {",
+					"            const endpoint = url.split('/').pop();",
+					"            if (endpoint.includes('election')) {",
+					"                pm.environment.set('last_election_id', responseJson.data.id);",
+					"                console.log(`💾 Saved election ID: ${responseJson.data.id}`);",
+					"            } else if (endpoint.includes('candidate')) {",
+					"                pm.environment.set('last_candidate_id', responseJson.data.id);",
+					"                console.log(`💾 Saved candidate ID: ${responseJson.data.id}`);",
+					"            } else if (endpoint.includes('voter')) {",
+					"                pm.environment.set('last_voter_id', responseJson.data.id);",
+					"                console.log(`💾 Saved voter ID: ${responseJson.data.id}`);",
+					"            }",
+					"        }",
+					"    } catch (e) {",
+					"        // Ignore JSON parsing errors",
+					"    }",
+					"}",
+					"",
+					"// Global response validation",
+					"pm.test('Response time is acceptable', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(10000);",
+					"});",
+					"",
+					"pm.test('Response has valid status code', function () {",
+					"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 202, 204, 400, 401, 403, 404, 422, 500]);",
+					"});"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "🔐 Authentication",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-save admin token after successful login",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success true', function () {",
+									"    const responseJson = pm.response.json();",
+									"    pm.expect(responseJson.success).to.be.true;",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    if (responseJson.success && responseJson.data && responseJson.data.token) {",
+									"        // Save admin token and user info",
+									"        pm.environment.set('admin_token', responseJson.data.token);",
+									"        pm.environment.set('current_user_id', responseJson.data.user.id);",
+									"        pm.environment.set('current_user_role', responseJson.data.user.role);",
+									"        pm.environment.set('current_user_name', responseJson.data.user.name);",
+									"        ",
+									"        // Set token expiry (1 hour from now)",
+									"        const expiryTime = new Date().getTime() + (60 * 60 * 1000);",
+									"        pm.environment.set('admin_token_expiry', expiryTime);",
+									"        ",
+									"        console.log('🔐 Admin token saved successfully!');",
+									"        console.log('👤 User:', responseJson.data.user.name);",
+									"        console.log('🎭 Role:', responseJson.data.user.role);",
+									"        console.log('🕐 Expires in: 1 hour');",
+									"        console.log('🔑 Token:', responseJson.data.token.substring(0,20) + '...');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/admin/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "admin", "login"]
+						}
+					}
+				},
+				{
+					"name": "Voter Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-save voter token after successful login",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    if (responseJson.success && responseJson.data && responseJson.data.token) {",
+									"        // Save voter token and user info",
+									"        pm.environment.set('voter_token', responseJson.data.token);",
+									"        pm.environment.set('voter_id', responseJson.data.user.id);",
+									"        pm.environment.set('voter_name', responseJson.data.user.name);",
+									"        pm.environment.set('voter_cpf', responseJson.data.user.cpf);",
+									"        ",
+									"        // Voter token expires in 5 minutes",
+									"        const expiryTime = new Date().getTime() + (5 * 60 * 1000);",
+									"        pm.environment.set('voter_token_expiry', expiryTime);",
+									"        ",
+									"        console.log('🗳️ Voter token saved successfully!');",
+									"        console.log('👤 Voter:', responseJson.data.user.name);",
+									"        console.log('🕐 Expires in: 5 minutes');",
+									"        console.log('🔑 Token:', responseJson.data.token.substring(0,20) + '...');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{voter_email}}\",\n    \"password\": \"{{voter_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/voter/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "voter", "login"]
+						}
+					}
+				},
+				{
+					"name": "Validate Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/validate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "validate"]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "logout"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "👥 Admin Management",
+			"item": [
+				{
+					"name": "Get All Admins",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Admin by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement/{{admin_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement", "{{admin_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Create Admin",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Admin Teste\",\n    \"email\": \"admin.teste@election.com\",\n    \"password\": \"AdminPassword123!\",\n    \"role\": \"admin\",\n    \"permissions\": \"{\\\"elections\\\": [\\\"read\\\", \\\"write\\\"]}\",\n    \"isActive\": true,\n    \"isSuper\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement"]
+						}
+					}
+				},
+				{
+					"name": "Update Admin",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Admin Atualizado\",\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement/{{admin_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement", "{{admin_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Deactivate Admin",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement/{{admin_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement", "{{admin_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Reactivate Admin",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/adminmanagement/{{admin_id}}/reactivate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "adminmanagement", "{{admin_id}}", "reactivate"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🗳️ Elections",
+			"item": [
+				{
+					"name": "Get All Elections",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/election?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Election by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/election/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Create Election",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Eleição Teste 2025\",\n    \"description\": \"Eleição para teste do sistema\",\n    \"electionType\": \"internal\",\n    \"startDate\": \"2025-12-01T09:00:00\",\n    \"endDate\": \"2025-12-01T18:00:00\",\n    \"timezone\": \"America/Sao_Paulo\",\n    \"allowBlankVotes\": true,\n    \"allowNullVotes\": false,\n    \"maxVotesPerVoter\": 1,\n    \"votingMethod\": \"single_choice\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/election",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election"]
+						}
+					}
+				},
+				{
+					"name": "Update Election",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Eleição Atualizada 2025\",\n    \"description\": \"Descrição atualizada\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/election/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Election Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/election/{{election_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election", "{{election_id}}", "status"]
+						}
+					}
+				},
+				{
+					"name": "Get Active Elections",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/election/active",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election", "active"]
+						}
+					}
+				},
+				{
+					"name": "Delete Election",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/election/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "election", "{{election_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📋 Positions",
+			"item": [
+				{
+					"name": "Get All Positions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/position?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Position by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/position/{{position_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "{{position_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Positions by Election",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/position/election/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "election", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Position with Candidates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/position/{{position_id}}/with-candidates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "{{position_id}}", "with-candidates"]
+						}
+					}
+				},
+				{
+					"name": "Create Position",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Prefeito\",\n    \"description\": \"Cargo de Prefeito Municipal\",\n    \"electionId\": {{election_id}},\n    \"maxCandidates\": 10,\n    \"maxVotesPerVoter\": 1,\n    \"displayOrder\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/position",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position"]
+						}
+					}
+				},
+				{
+					"name": "Update Position",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Prefeito Atualizado\",\n    \"description\": \"Descrição atualizada\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/position/{{position_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "{{position_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Position",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/position/{{position_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "{{position_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Reorder Positions",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"1\": 1,\n    \"2\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/position/election/{{election_id}}/reorder",
+							"host": ["{{base_url}}"],
+							"path": ["api", "position", "election", "{{election_id}}", "reorder"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "👤 Candidates",
+			"item": [
+				{
+					"name": "Get All Candidates",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidate?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Candidate by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Candidates by Position",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/candidate/position/{{position_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "position", "{{position_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Candidates with Votes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidate/position/{{position_id}}/with-votes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "position", "{{position_id}}", "with-votes"]
+						}
+					}
+				},
+				{
+					"name": "Create Candidate",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Maria Silva\",\n    \"number\": \"10\",\n    \"description\": \"Candidata experiente\",\n    \"biography\": \"Biografia da candidata...\",\n    \"positionId\": {{position_id}},\n    \"orderPosition\": 1,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate"]
+						}
+					}
+				},
+				{
+					"name": "Update Candidate",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Maria Silva Santos\",\n    \"description\": \"Candidata com experiência atualizada\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Candidate",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Upload Candidate Photo (File)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "photo",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}/upload-photo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}", "upload-photo"]
+						}
+					}
+				},
+				{
+					"name": "Upload Candidate Photo (BLOB Optimized)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "photo",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}/upload-photo-blob",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}", "upload-photo-blob"]
+						}
+					}
+				},
+				{
+					"name": "Get Candidate Photo",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/candidate/{{candidate_id}}/photo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "{{candidate_id}}", "photo"]
+						}
+					}
+				},
+				{
+					"name": "Reorder Candidates",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"1\": 1,\n    \"2\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/candidate/position/{{position_id}}/reorder",
+							"host": ["{{base_url}}"],
+							"path": ["api", "candidate", "position", "{{position_id}}", "reorder"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "👨‍💼 Voters",
+			"item": [
+				{
+					"name": "Get All Voters",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter?page=1&limit=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Voter by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter/{{voter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "{{voter_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Voter Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voter_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Get Voter Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter/statistics",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "statistics"]
+						}
+					}
+				},
+				{
+					"name": "Create Voter",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"João Silva\",\n    \"email\": \"joao.silva@example.com\",\n    \"cpf\": \"12345678901\",\n    \"password\": \"VoterPassword123!\",\n    \"phone\": \"+5511999999999\",\n    \"voteWeight\": 1.0,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter"]
+						}
+					}
+				},
+				{
+					"name": "Update Voter",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"João Silva Santos\",\n    \"phone\": \"+5511888888888\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter/{{voter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "{{voter_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Voter Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voter_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Nome Atualizado\",\n    \"phone\": \"+5511777777777\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter/profile",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Delete Voter",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter/{{voter_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "{{voter_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Verify Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"verificationToken\": \"{{verification_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter/verify-email",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "verify-email"]
+						}
+					}
+				},
+				{
+					"name": "Send Verification Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voter/{{voter_id}}/send-verification",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "{{voter_id}}", "send-verification"]
+						}
+					}
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voter_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"currentPassword\": \"CurrentPassword123!\",\n    \"newPassword\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter/change-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "change-password"]
+						}
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"voter@example.com\",\n    \"newPassword\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voter/reset-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voter", "reset-password"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🗳️ Voting System",
+			"item": [
+				{
+					"name": "Voter Login (Voting)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    if (responseJson.success && responseJson.data && responseJson.data.token) {",
+									"        pm.environment.set('voting_token', responseJson.data.token);",
+									"        console.log('✅ Voting token saved');",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{voter_email}}\",\n    \"password\": \"{{voter_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voting/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "login"]
+						}
+					}
+				},
+				{
+					"name": "Get Election Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voting_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voting/election/{{election_id}}/status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "election", "{{election_id}}", "status"]
+						}
+					}
+				},
+				{
+					"name": "Cast Vote",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const responseJson = pm.response.json();",
+									"    if (responseJson.success && responseJson.data && responseJson.data.receiptToken) {",
+									"        pm.environment.set('receipt_token', responseJson.data.receiptToken);",
+									"        console.log('✅ Receipt token saved');",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voting_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"electionId\": {{election_id}},\n    \"votes\": [\n        {\n            \"positionId\": {{position_id}},\n            \"candidateId\": {{candidate_id}}\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voting/cast-vote",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "cast-vote"]
+						}
+					}
+				},
+				{
+					"name": "Get Vote Receipt",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/voting/receipt/{{receipt_token}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "receipt", "{{receipt_token}}"]
+						}
+					}
+				},
+				{
+					"name": "Check if Voted",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voting_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voting/has-voted/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "has-voted", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Can Vote in Election",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{voting_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voting/can-vote/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "can-vote", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Seal Election",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"electionId\": {{election_id}},\n    \"sealType\": \"final\",\n    \"notes\": \"Election sealed after voting period\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/voting/seal",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "seal"]
+						}
+					}
+				},
+				{
+					"name": "Generate Zero Report",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voting/zero-report/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "zero-report", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Validate Election Integrity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/voting/integrity-report/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting", "integrity-report", "{{election_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Reports & Audit",
+			"item": [
+				{
+					"name": "Get Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/audit-logs?page=1&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "audit-logs"],
+							"query": [
+								{"key": "page", "value": "1"},
+								{"key": "limit", "value": "50"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Audit Log by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/audit-logs/{{log_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "audit-logs", "{{log_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Audit Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/statistics?startDate=2025-01-01&endDate=2025-12-31",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "statistics"],
+							"query": [
+								{"key": "startDate", "value": "2025-01-01"},
+								{"key": "endDate", "value": "2025-12-31"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Generate Security Report",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/security-report?startDate=2025-01-01&endDate=2025-12-31",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "security-report"],
+							"query": [
+								{"key": "startDate", "value": "2025-01-01"},
+								{"key": "endDate", "value": "2025-12-31"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get User Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/user-activity/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "user-activity", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Entity History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/entity-history/{{entity_type}}/{{entity_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "entity-history", "{{entity_type}}", "{{entity_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Suspicious Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/suspicious-activity",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "suspicious-activity"]
+						}
+					}
+				},
+				{
+					"name": "Export Logs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"format\": \"csv\",\n    \"startDate\": \"2025-01-01T00:00:00\",\n    \"endDate\": \"2025-12-31T23:59:59\",\n    \"includeDetails\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/report/export",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "export"]
+						}
+					}
+				},
+				{
+					"name": "Get Dashboard Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/dashboard",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "dashboard"]
+						}
+					}
+				},
+				{
+					"name": "Get Real-time Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/real-time?limit=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "real-time"],
+							"query": [
+								{"key": "limit", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Cleanup Old Logs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/report/cleanup-old-logs?retentionDays=365",
+							"host": ["{{base_url}}"],
+							"path": ["api", "report", "cleanup-old-logs"],
+							"query": [
+								{"key": "retentionDays", "value": "365"}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📧 Email System",
+			"item": [
+				{
+					"name": "Send Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"toEmail\": \"recipient@example.com\",\n    \"toName\": \"Recipient Name\",\n    \"subject\": \"Test Email\",\n    \"body\": \"<h1>Test Email</h1><p>This is a test email from the Election System.</p>\",\n    \"isHtml\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/email/send",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "send"]
+						}
+					}
+				},
+				{
+					"name": "Send Bulk Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"subject\": \"Bulk Email Test\",\n    \"body\": \"<h1>Bulk Email</h1><p>This is a bulk email sent to multiple recipients.</p>\",\n    \"isHtml\": true,\n    \"recipients\": [\n        {\n            \"email\": \"user1@example.com\",\n            \"name\": \"User 1\"\n        },\n        {\n            \"email\": \"user2@example.com\",\n            \"name\": \"User 2\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/email/send-bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "send-bulk"]
+						}
+					}
+				},
+				{
+					"name": "Send Template Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"toEmail\": \"recipient@example.com\",\n    \"toName\": \"Recipient Name\",\n    \"template\": {\n        \"templateName\": \"welcome\",\n        \"variables\": {\n            \"userName\": \"John Doe\",\n            \"electionName\": \"Municipal Election 2025\"\n        }\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/email/send-template",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "send-template"]
+						}
+					}
+				},
+				{
+					"name": "Get Email History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/email/history?limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "history"],
+							"query": [
+								{"key": "limit", "value": "50"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Email Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/email/status/{{email_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "status", "{{email_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Validate Email Configuration",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/email/validate-config",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "validate-config"]
+						}
+					}
+				},
+				{
+					"name": "Send Test Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"toEmail\": \"test@example.com\",\n    \"toName\": \"Test User\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/email/test",
+							"host": ["{{base_url}}"],
+							"path": ["api", "email", "test"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🔒 System Seal",
+			"item": [
+				{
+					"name": "Generate System Seal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/systemseal/generate/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "systemseal", "generate", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Latest System Seal",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/systemseal/latest/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "systemseal", "latest", "{{election_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Verify System Seal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"providedSealHash\": \"{{seal_hash}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/systemseal/verify/{{election_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "systemseal", "verify", "{{election_id}}"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-set base_url if not set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:5110');",
+					"}",
+					"",
+					"// Token refresh logic",
+					"const adminTokenExpiry = pm.environment.get('admin_token_expiry');",
+					"const currentTime = new Date().getTime();",
+					"if (adminTokenExpiry && currentTime > adminTokenExpiry) {",
+					"    pm.environment.unset('admin_token');",
+					"}",
+					"",
+					"const voterTokenExpiry = pm.environment.get('voter_token_expiry');",
+					"if (voterTokenExpiry && currentTime > voterTokenExpiry) {",
+					"    pm.environment.unset('voter_token');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global response handling",
+					"console.log('Response:', pm.response.code, pm.response.responseTime + 'ms');",
+					"",
+					"if (pm.response.code === 401) {",
+					"    console.log('⚠️ Authentication error - clearing tokens');",
+					"    pm.environment.unset('admin_token');",
+					"    pm.environment.unset('voter_token');",
+					"    pm.environment.unset('voting_token');",
+					"}",
+					"",
+					"if (pm.response.code >= 500) {",
+					"    console.log('❌ Server error:', pm.response.text());",
+					"}",
+					"",
+					"if (pm.response.code >= 200 && pm.response.code < 300) {",
+					"    try {",
+					"        const responseJson = pm.response.json();",
+					"        if (responseJson.success !== undefined) {",
+					"            console.log(responseJson.success ? '✅ Success' : '❌ API Error:', responseJson.message);",
+					"        }",
+					"    } catch (e) {",
+					"        // Not JSON, that's ok",
+					"    }",
+					"}"
+				]
+			}
+		},
+		{
+			"name": "🗳️ Voting Portal",
+			"item": [
+				{
+					"name": "Get Election for Voting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/voting-portal/elections/{{election_id}}/candidates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting-portal", "elections", "{{election_id}}", "candidates"]
+						}
+					}
+				},
+				{
+					"name": "Validate Election for Voting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/voting-portal/elections/{{election_id}}/validate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting-portal", "elections", "{{election_id}}", "validate"]
+						}
+					}
+				},
+				{
+					"name": "Get Candidates by Position",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/voting-portal/positions/{{position_id}}/candidates",
+							"host": ["{{base_url}}"],
+							"path": ["api", "voting-portal", "positions", "{{position_id}}", "candidates"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5110",
+			"type": "string"
+		},
+		{
+			"key": "admin_email",
+			"value": "admin@election-system.com",
+			"type": "string"
+		},
+		{
+			"key": "admin_password",
+			"value": "admin123",
+			"type": "string"
+		},
+		{
+			"key": "voter_email",
+			"value": "joao@example.com",
+			"type": "string"
+		},
+		{
+			"key": "voter_password",
+			"value": "voter123",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "voter_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "voting_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "current_user_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "current_user_role",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "current_user_name",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "voter_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "voter_name",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "election_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "position_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "candidate_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "admin_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "log_id",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "email_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "receipt_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "verification_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "seal_hash",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "entity_type",
+			"value": "election",
+			"type": "string"
+		},
+		{
+			"key": "entity_id",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}

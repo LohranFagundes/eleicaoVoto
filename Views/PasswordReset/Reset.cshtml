@@ -1,0 +1,107 @@
+@model VoteHomWebApp.Models.PasswordResetModel
+@{
+    ViewData["Title"] = "Redefinir Senha";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-key me-2"></i>Redefinir Senha
+                    </h4>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(Model.UserEmail))
+                    {
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Redefinindo senha para: <strong>@Model.UserEmail</strong>
+                        </div>
+                    }
+
+                    <form asp-controller="PasswordReset" asp-action="Reset" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Token" />
+                        <input type="hidden" asp-for="UserEmail" />
+                        <input type="hidden" asp-for="UserCpf" />
+
+                        <div class="mb-3">
+                            <label asp-for="NewPassword" class="form-label">
+                                <i class="fas fa-lock me-2"></i>Nova Senha
+                            </label>
+                            <div class="input-group">
+                                <input asp-for="NewPassword" type="password" class="form-control" placeholder="Digite sua nova senha" />
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('NewPassword')">
+                                    <i class="fas fa-eye" id="NewPassword-eye"></i>
+                                </button>
+                            </div>
+                            <span asp-validation-for="NewPassword" class="text-danger"></span>
+                            <div class="form-text">A senha deve ter pelo menos 6 caracteres.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="ConfirmPassword" class="form-label">
+                                <i class="fas fa-lock me-2"></i>Confirmar Nova Senha
+                            </label>
+                            <div class="input-group">
+                                <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Confirme sua nova senha" />
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('ConfirmPassword')">
+                                    <i class="fas fa-eye" id="ConfirmPassword-eye"></i>
+                                </button>
+                            </div>
+                            <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                        </div>
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save me-2"></i>Redefinir Senha
+                            </button>
+                            <a href="@Url.Action("Index", "Vote")" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Voltar ao Login
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Esta é uma página segura. O link expira em algumas horas.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <script>
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const eye = document.getElementById(fieldId + '-eye');
+            
+            if (field.type === 'password') {
+                field.type = 'text';
+                eye.classList.remove('fa-eye');
+                eye.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                eye.classList.remove('fa-eye-slash');
+                eye.classList.add('fa-eye');
+            }
+        }
+
+        // Auto-focus on first input
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('NewPassword').focus();
+        });
+    </script>
+}

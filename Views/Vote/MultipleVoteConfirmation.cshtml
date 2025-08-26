@@ -1,0 +1,184 @@
+@model VoteHomWebApp.Models.MultipleVoteSession
+@{
+    ViewData["Title"] = "Confirmação de Votação Múltipla";
+    var electionName = ViewBag.ElectionName as string ?? "Eleição";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="text-center mb-4">
+            <h2 class="text-primary">@electionName</h2>
+            <h3 class="text-success"><i class="fas fa-check-circle me-2"></i>Confirmação Final da Votação</h3>
+            <p class="text-info">Revise todos os seus votos antes de confirmar definitivamente</p>
+        </div>
+
+        <!-- Vote Summary -->
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-ballot-check me-2"></i>Resumo dos Seus Votos</h4>
+            </div>
+            <div class="card-body">
+                @foreach (var voteChoice in Model.VoteChoices.Values.OrderBy(v => v.PositionName))
+                {
+                    <div class="row mb-3 py-3 border-bottom">
+                        <div class="col-md-4">
+                            <h5 class="text-primary mb-1">@voteChoice.PositionName</h5>
+                            <small class="text-muted">Cargo @(Model.VoteChoices.Keys.ToList().IndexOf(voteChoice.PositionId) + 1) de @Model.VoteChoices.Count</small>
+                        </div>
+                        <div class="col-md-8">
+                            @if (voteChoice.IsBlankVote)
+                            {
+                                <div class="alert alert-secondary mb-0 py-2">
+                                    <i class="fas fa-square me-2"></i>
+                                    <strong>Voto em Branco</strong>
+                                </div>
+                            }
+                            else if (voteChoice.IsNullVote)
+                            {
+                                <div class="alert alert-danger mb-0 py-2">
+                                    <i class="fas fa-ban me-2"></i>
+                                    <strong>Voto Nulo</strong>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-success mb-0 py-2">
+                                    <i class="fas fa-user-check me-2"></i>
+                                    <strong>@voteChoice.CandidateName</strong>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Important Notice -->
+        <div class="alert alert-warning mt-4">
+            <h5><i class="fas fa-exclamation-triangle me-2"></i>Atenção Importante:</h5>
+            <ul class="mb-0">
+                <li><strong>Esta ação é irreversível</strong> - após confirmar, não será possível alterar seus votos</li>
+                <li>Você está votando em <strong>@Model.VoteChoices.Count cargos</strong> simultaneamente</li>
+                <li>Um comprovante único será gerado para toda a votação</li>
+                <li>Verifique cuidadosamente todos os votos acima</li>
+            </ul>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="text-center mt-4">
+            <form asp-controller="Vote" asp-action="SubmitFinalMultipleVotes" method="post" style="display: inline;">
+                <button type="button" class="btn btn-success btn-lg me-3" onclick="showFinalConfirmationModal()">
+                    <i class="fas fa-check-double me-2"></i>Confirmar Todos os Votos
+                </button>
+            </form>
+            
+            <a href="@Url.Action("StartMultipleVote")" class="btn btn-outline-secondary btn-lg me-3">
+                <i class="fas fa-edit me-2"></i>Revisar Votos
+            </a>
+            
+            <a href="@Url.Action("SelectPosition")" class="btn btn-outline-danger btn-lg">
+                <i class="fas fa-times me-2"></i>Cancelar Votação
+            </a>
+        </div>
+
+        <!-- Timer -->
+        <div class="text-center mt-4">
+            <div class="vote-timer text-warning" id="timer">00:02:00</div>
+            <p class="text-muted small">Tempo restante para confirmar a votação</p>
+        </div>
+    </div>
+</div>
+
+<!-- Final Confirmation Modal -->
+<div class="modal fade" id="finalConfirmationModal" tabindex="-1" aria-labelledby="finalConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="finalConfirmationModalLabel">
+                    <i class="fas fa-check-double me-2"></i>Confirmação Final
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-vote-yea fa-4x text-success mb-3"></i>
+                    <h4>Você está prestes a finalizar sua votação!</h4>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Seus votos serão registrados para:</h6>
+                    <ul class="mb-0">
+                        @foreach (var vote in Model.VoteChoices.Values.OrderBy(v => v.PositionName))
+                        {
+                            <li><strong>@vote.PositionName:</strong> @(vote.IsBlankVote ? "Voto em Branco" : vote.IsNullVote ? "Voto Nulo" : vote.CandidateName)</li>
+                        }
+                    </ul>
+                </div>
+                
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>ÚLTIMA CHANCE:</h6>
+                    <p class="mb-0">Após clicar em "SIM, CONFIRMAR VOTAÇÃO", não será possível fazer alterações. Seus votos serão registrados permanentemente no sistema.</p>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <form asp-controller="Vote" asp-action="SubmitFinalMultipleVotes" method="post">
+                    <button type="submit" class="btn btn-success btn-lg me-3">
+                        <i class="fas fa-check-double me-2"></i>SIM, CONFIRMAR VOTAÇÃO
+                    </button>
+                </form>
+                <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar e Revisar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-success text-white text-center py-2">
+    <small><strong>Confirmação Final - Votação Múltipla</strong></small>
+</div>
+
+@section Scripts {
+    <style>
+        .vote-timer {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .border-bottom:last-child {
+            border-bottom: none !important;
+        }
+    </style>
+    
+    <script>
+        let timeLeft = 120; // 2 minutos para confirmar
+
+        function showFinalConfirmationModal() {
+            const modal = new bootstrap.Modal(document.getElementById('finalConfirmationModal'));
+            modal.show();
+        }
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft > 0) {
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                alert('Tempo esgotado! A votação será cancelada.');
+                window.location.href = '@Url.Action("SelectPosition")';
+            }
+        }
+
+        // Iniciar timer
+        updateTimer();
+
+        // Prevent accidental page leave
+        window.addEventListener('beforeunload', function (e) {
+            e.preventDefault();
+            e.returnValue = 'Você tem votos pendentes de confirmação. Tem certeza que deseja sair?';
+        });
+    </script>
+}

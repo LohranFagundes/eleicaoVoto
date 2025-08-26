@@ -1,0 +1,45 @@
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Bem-vindo ao Sistema de Votação</h1>
+
+    @if (ViewBag.ErrorMessage != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            @ViewBag.ErrorMessage
+        </div>
+    }
+    else if (ViewBag.ElectionActive != null && ViewBag.ElectionActive)
+    {
+        <div class="alert alert-success" role="alert">
+            A eleição "@ViewBag.ElectionTitle" está ativa! Faça login para votar.
+        </div>
+
+        <div class="card p-4 mx-auto" style="max-width: 400px;">
+            <h2>Login</h2>
+            <form asp-action="Login" method="post">
+                <div class="form-group">
+                    <label for="username">Usuário:</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Senha:</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                @if (ViewBag.LoginError != null)
+                {
+                    <div class="text-danger">@ViewBag.LoginError</div>
+                }
+                <button type="submit" class="btn btn-primary mt-3">Entrar</button>
+            </form>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning" role="alert">
+            A eleição "@ViewBag.ElectionTitle" está programada para ocorrer de @ViewBag.ElectionStartDate a @ViewBag.ElectionEndDate.
+        </div>
+    }
+</div>

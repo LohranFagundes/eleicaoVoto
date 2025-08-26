@@ -1,0 +1,109 @@
+@model VoteHomWebApp.Models.VoteConfirmation
+@{
+    ViewData["Title"] = "Voto Confirmado";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="text-center mb-4">
+            <div class="funcorsan-logo" style="font-size: 2rem;">
+                <div style="color: #0066cc;">◆◆</div>
+                <div style="font-size: 1.5rem; margin-top: 10px;">FUNCORSAN</div>
+                <div style="font-size: 0.9rem; color: #666; font-weight: normal;">Seu futuro mais presente</div>
+            </div>
+        </div>
+
+        <div class="text-center mb-5">
+            <h2 class="text-success mb-3">Agradecemos pelo seu voto</h2>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white text-center">
+                <h4><i class="fas fa-check-circle"></i> FIM, SEU VOTO FOI COMPUTADO!</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="text-center mb-4">Comprovante de Votação:</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Votação:</strong> @Model.ElectionName</p>
+                        <p><strong>Eleitor:</strong> @Model.VoterName</p>
+                        <p><strong>CPF:</strong> @Model.CPF</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Nº do comprovante:</strong> @Model.VoteId</p>
+                        <p><strong>Votação realizada em:</strong> @Model.VoteDateTime.ToString("dd/MM/yyyy HH:mm")</p>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button class="btn btn-primary" onclick="window.print()">
+                        <i class="fas fa-print"></i> Imprimir Comprovante
+                    </button>
+                    <a href="@Url.Action("Index")" class="btn btn-secondary ms-2">
+                        <i class="fas fa-home"></i> Voltar ao Início
+                    </a>
+                </div>
+
+                <div class="text-center mt-4">
+                    <div class="vote-timer" id="timer">00:00:10</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <script>
+        let timeLeft = 10; // 10 segundos
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft > 0) {
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                // Redirecionar automaticamente após 10 segundos
+                window.location.href = '@Url.Action("Index", "Vote")';
+            }
+        }
+
+        // Iniciar timer
+        updateTimer();
+
+        // Auto logout após votação
+        setTimeout(function() {
+            fetch('@Url.Action("Logout", "Vote")', {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                }
+            }).then(() => {
+                window.location.href = '@Url.Action("Index", "Vote")';
+            });
+        }, 10000); // 10 segundos
+    </script>
+
+    <style media="print">
+        .btn, .vote-timer, .fixed-bottom, nav, footer {
+            display: none !important;
+        }
+        
+        .card {
+            border: 2px solid #000 !important;
+            box-shadow: none !important;
+        }
+
+        body {
+            background: white !important;
+        }
+    </style>
+}

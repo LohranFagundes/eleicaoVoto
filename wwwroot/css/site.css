@@ -1,0 +1,112 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+
+/* Estilos para votação */
+.vote-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.vote-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.vote-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.vote-card.selected .card {
+    border-color: #28a745;
+}
+
+.candidate-image {
+    border: 3px solid #dee2e6;
+    transition: border-color 0.3s ease;
+}
+
+.vote-card.selected .candidate-image {
+    border-color: #28a745;
+}
+
+.candidate-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background-color: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.candidate-number {
+    font-size: 1.1em;
+    color: #007bff;
+    margin-bottom: 8px;
+}
+
+.special-vote-icon {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.vote-timer {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #dc3545;
+    background-color: #fff3cd;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: 2px solid #ffeaa7;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+.step-indicator {
+    background-color: #6f42c1;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767px) {
+    .candidate-image, .candidate-avatar, .special-vote-icon {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .vote-timer {
+        font-size: 1.2em;
+    }
+}

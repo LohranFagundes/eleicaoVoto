@@ -1,0 +1,136 @@
+@model List<VoteHomWebApp.Models.VoteStorage>
+@{
+    ViewData["Title"] = "Histórico de Votos";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="text-center mb-4">
+            <h2 class="text-purple">Histórico de Votos</h2>
+            <p class="text-info">Votos armazenados localmente no sistema</p>
+        </div>
+
+        @if (Model.Any())
+        {
+            <div class="row">
+                @foreach (var voteStorage in Model)
+                {
+                    <div class="col-12 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-vote-yea"></i> 
+                                    Voto - @voteStorage.VotedAt.ToString("dd/MM/yyyy HH:mm:ss")
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>CPF do Eleitor:</strong> @voteStorage.VoterCpf</p>
+                                        <p><strong>ID da Eleição:</strong> @voteStorage.ElectionId</p>
+                                        <p><strong>Data/Hora:</strong> @voteStorage.VotedAt.ToString("dd/MM/yyyy HH:mm:ss")</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Token do Recibo:</strong> 
+                                            <code class="text-success">@voteStorage.ReceiptToken</code>
+                                        </p>
+                                        <p><strong>Hash do Voto:</strong> 
+                                            <small class="text-muted">@voteStorage.VoteHash</small>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                @if (voteStorage.Votes.Any())
+                                {
+                                    <hr>
+                                    <h6 class="text-primary">Detalhes dos Votos:</h6>
+                                    <div class="row">
+                                        @foreach (var vote in voteStorage.Votes)
+                                        {
+                                            <div class="col-md-6 mb-3">
+                                                <div class="card vote-detail-card">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">@vote.PositionName</h6>
+                                                        
+                                                        @if (vote.IsBlankVote)
+                                                        {
+                                                            <p class="text-muted">
+                                                                <i class="fas fa-square"></i> VOTO EM BRANCO
+                                                            </p>
+                                                        }
+                                                        else if (vote.IsNullVote)
+                                                        {
+                                                            <p class="text-danger">
+                                                                <i class="fas fa-ban"></i> VOTO NULO
+                                                            </p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <p class="mb-1">
+                                                                <strong>Candidato:</strong> @vote.CandidateName
+                                                            </p>
+                                                            @if (!string.IsNullOrEmpty(vote.CandidateNumber))
+                                                            {
+                                                                <p class="mb-1">
+                                                                    <strong>Número:</strong> @vote.CandidateNumber
+                                                                </p>
+                                                            }
+                                                        }
+
+                                                        @if (!string.IsNullOrEmpty(vote.Justification))
+                                                        {
+                                                            <p class="text-muted small">
+                                                                <strong>Justificativa:</strong> @vote.Justification
+                                                            </p>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="text-center">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h4>Nenhum voto encontrado</h4>
+                    <p>Não há votos armazenados localmente no sistema.</p>
+                </div>
+            </div>
+        }
+
+        <div class="text-center mt-4">
+            <a href="@Url.Action("SelectPosition")" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Voltar para Votação
+            </a>
+            <a href="@Url.Action("Index")" class="btn btn-secondary ms-2">
+                <i class="fas fa-home"></i> Início
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .vote-detail-card {
+        border-left: 4px solid #007bff;
+        background-color: #f8f9fa;
+    }
+
+    .vote-detail-card .card-body {
+        padding: 1rem;
+    }
+
+    code {
+        background-color: #e9ecef;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+</style>

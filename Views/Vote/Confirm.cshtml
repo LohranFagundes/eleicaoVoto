@@ -1,0 +1,164 @@
+@{
+    ViewData["Title"] = "Confirmar Voto";
+    var step1Candidate = ViewBag.Step1Candidate as VoteHomWebApp.Models.Candidate;
+    var step2Candidate = ViewBag.Step2Candidate as VoteHomWebApp.Models.Candidate;
+    var voteRequest = ViewBag.VoteRequest as VoteHomWebApp.Models.VoteRequest;
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-primary text-white">
+                <h3>Confirme seu Voto</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>Atenção:</strong> Verifique suas escolhas antes de confirmar. Após a confirmação, não será possível alterar o voto.
+                </div>
+
+                <h5 class="mb-3">Resumo das suas escolhas:</h5>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <strong>Passo 1 - CONSELHO DELIBERATIVO</strong>
+                            </div>
+                            <div class="card-body">
+                                @if (step1Candidate != null)
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">@step1Candidate.Name</h6>
+                                            @if (!string.IsNullOrEmpty(step1Candidate.PositionName))
+                                            {
+                                                <small class="text-muted">@step1Candidate.PositionName</small>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else if (voteRequest?.VoteType == "blank")
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3" style="background-color: #6c757d;">
+                                            <i class="fas fa-square"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">Voto em Branco</h6>
+                                        </div>
+                                    </div>
+                                }
+                                else if (voteRequest?.VoteType == "null")
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3" style="background-color: #dc3545;">
+                                            <i class="fas fa-ban"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">Voto Nulo</h6>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <strong>Passo 2 - CONSELHO FISCAL</strong>
+                            </div>
+                            <div class="card-body">
+                                @if (step2Candidate != null)
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">@step2Candidate.Name</h6>
+                                            @if (!string.IsNullOrEmpty(step2Candidate.PositionName))
+                                            {
+                                                <small class="text-muted">@step2Candidate.PositionName</small>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else if (voteRequest?.VoteType == "blank")
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3" style="background-color: #6c757d;">
+                                            <i class="fas fa-square"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">Voto em Branco</h6>
+                                        </div>
+                                    </div>
+                                }
+                                else if (voteRequest?.VoteType == "null")
+                                {
+                                    <div class="d-flex align-items-center">
+                                        <div class="candidate-avatar me-3" style="background-color: #dc3545;">
+                                            <i class="fas fa-ban"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-1">Voto Nulo</h6>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="@Url.Action("Vote", new { step = 1 })" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-arrow-left"></i> Voltar e Alterar
+                        </a>
+                        <form asp-controller="Vote" asp-action="ConfirmVote" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-check"></i> Confirmar Voto
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <div class="vote-timer" id="timer">00:05:00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <script>
+        let timeLeft = 300; // 5 minutos
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft > 0) {
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                alert('Tempo esgotado! Você será redirecionado para o início.');
+                window.location.href = '@Url.Action("Index", "Vote")';
+            }
+        }
+
+        // Iniciar timer
+        updateTimer();
+    </script>
+}

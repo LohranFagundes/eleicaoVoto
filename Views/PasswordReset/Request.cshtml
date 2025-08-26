@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Solicitar Redefinição de Senha";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white text-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-envelope me-2"></i>Esqueci Minha Senha
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        Digite seu email cadastrado no sistema. Se o email existir, você receberá um link para redefinir sua senha.
+                    </p>
+
+                    <form asp-controller="PasswordReset" asp-action="RequestReset" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope me-2"></i>Email
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="seu-email@exemplo.com" required />
+                        </div>
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-info btn-lg">
+                                <i class="fas fa-paper-plane me-2"></i>Enviar Link de Redefinição
+                            </button>
+                            <a href="@Url.Action("Login", "Vote")" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Voltar ao Login
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    O link de redefinição expira em algumas horas por segurança.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <script>
+        // Auto-focus on email input
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('email').focus();
+        });
+    </script>
+}

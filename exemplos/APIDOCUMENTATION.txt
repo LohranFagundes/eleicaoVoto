@@ -1,0 +1,2631 @@
+===============================================================================
+                      ELECTION API .NET - DOCUMENTAÇÃO COMPLETA
+===============================================================================
+
+BASE URL: http://localhost:5110
+API VERSION: 1.2.1 (ATUALIZADA - 05/08/2025 - VOTING PORTAL)
+AUTHENTICATION: JWT Bearer Token (Autenticação Direta)
+
+NOVIDADES NESTA VERSÃO:
+- Verificação completa e correção de todos os endpoints
+- Sistema completo de lacre criptográfico (/api/SystemSeal)
+- Autenticação JWT direta e simplificada
+- Sistema de usuário master otimizado
+- Upload híbrido de fotos (arquivos + BLOB)
+- Sistema completo de auditoria e relatórios
+- Sistema de email individual e em massa
+- Portal de votação otimizado com validação inteligente
+- Endpoints especializados para interface de votação
+- Documentação atualizada com todos os DTOs corretos
+- Collection Postman completa e funcional
+
+===============================================================================
+                                ESTRUTURA DA API
+===============================================================================
+
+ENDPOINTS PRINCIPAIS:
+- API Info: GET /
+- Health Check: GET /health
+- Swagger Documentation: GET /swagger
+- Authentication: /api/auth/*
+- Admin Management: /api/adminmanagement/*
+- Elections: /api/election/*
+- Secure Voting: /api/voting/*
+- Email System: /api/email/*
+- Audit Reports: /api/report/*
+- System Seal: /api/SystemSeal/*
+- Candidates: /api/candidate/*
+- Positions: /api/position/*
+- Voters: /api/voter/*
+- Voting Portal: /api/voting-portal/*
+
+FORMATO DE RESPOSTA PADRÃO:
+{
+    "success": true,
+    "message": "Success message",
+    "data": { /* response data */ },
+    "errors": null
+}
+
+===============================================================================
+                            AUTENTICAÇÃO - /api/auth
+===============================================================================
+
+1. LOGIN DE ADMINISTRADOR
+   Método: POST
+   Endpoint: /api/auth/admin/login
+   Autenticação: Não requerida
+   
+   BODY (JSON):
+   {
+       "email": "string",      // Obrigatório, formato email
+       "password": "string"    // Obrigatório
+   }
+   
+   EXEMPLO:
+   {
+       "email": "admin@election-system.com",
+       "password": "admin123"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+           "user": {
+               "id": 1,
+               "name": "Administrator",
+               "email": "admin@election-system.com",
+               "role": "super_admin",
+               "permissions": "all",
+               "cpf": null,
+               "voteWeight": 0
+           },
+           "expiresIn": 3600    // 1 hora em segundos
+       }
+   }
+   
+   OBSERVAÇÃO: 
+   O login retorna diretamente o token JWT após validação das credenciais.
+   
+   POSSÍVEIS ERROS:
+   - 400 Bad Request: Dados inválidos
+   - 401 Unauthorized: Credenciais inválidas
+   - 403 Forbidden: Conta desativada
+   - 500 Internal Server Error: Erro no servidor
+
+1.1. LOGIN DE USUÁRIO MASTER (DESENVOLVEDOR)
+   Método: POST
+   Endpoint: /api/auth/admin/login
+   Autenticação: Não requerida
+   
+   DESCRIÇÃO: O usuário master (desenvolvedor) possui permissões especiais de administração.
+   O sistema identifica automaticamente se o usuário é master e permite acesso total.
+   
+   BODY (JSON):
+   {
+       "email": "string",      // Obrigatório, formato email
+       "password": "string"    // Obrigatório
+   }
+   
+   EXEMPLO (USUÁRIO MASTER):
+   {
+       "email": "lohran@funcorsan.com.br",
+       "password": "admin123"
+   }
+   
+   RESPOSTA PARA USUÁRIO MASTER (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+           "user": {
+               "id": 2,
+               "name": "Lohran Fagundes",
+               "email": "lohran@funcorsan.com.br",
+               "role": "master",
+               "permissions": "{\"elections\": [\"create\", \"read\", \"update\", \"delete\"], \"admin_management\": [\"create\", \"read\", \"update\", \"delete\"], \"system\": [\"read\", \"manage\"]}"
+           },
+           "expiresIn": 3600    // 1 hora em segundos
+       }
+   }
+   
+   CARACTERÍSTICAS DO USUÁRIO MASTER:
+   - Acesso total ao sistema incluindo gerenciamento de administradores
+   - Role: "master"
+   - Token válido por 60 minutos
+   - Login direto com credenciais
+   
+   CREDENCIAIS DO USUÁRIO MASTER PARA TESTES:
+   Email: lohran@funcorsan.com.br
+   Senha: admin123
+   Role: master
+
+2. LOGIN DE ELEITOR
+   Método: POST
+   Endpoint: /api/auth/voter/login
+   Autenticação: Não requerida
+   
+   BODY (JSON):
+   {
+       "email": "string",      // Obrigatório, formato email
+       "password": "string"    // Obrigatório
+   }
+   
+   EXEMPLO:
+   {
+       "email": "joao@example.com",
+       "password": "voter123"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+           "user": {
+               "id": 1,
+               "name": "João Silva",
+               "email": "joao@example.com",
+               "role": null,
+               "permissions": null,
+               "cpf": "12345678901",
+               "voteWeight": 1.0
+           },
+           "expiresIn": 300     // 5 minutos em segundos
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 400 Bad Request: Dados inválidos
+   - 401 Unauthorized: Credenciais inválidas
+   - 403 Forbidden: Conta inativa ou não verificada
+   - 500 Internal Server Error: Erro no servidor
+
+3. LOGOUT
+   Método: POST
+   Endpoint: /api/auth/logout
+   Autenticação: Não requerida (mas registra no log se autenticado)
+   
+   BODY: Não necessário
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Logged out successfully",
+       "data": null
+   }
+
+4. VALIDAR TOKEN
+   Método: POST
+   Endpoint: /api/auth/validate
+   Autenticação: Bearer Token no header
+   
+   HEADERS:
+   Authorization: Bearer {token}
+   
+   BODY: Não necessário
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "valid": true,
+           "userId": 1,
+           "role": "admin"
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 401 Unauthorized: Token inválido ou não fornecido
+   - 500 Internal Server Error: Erro na validação
+
+===============================================================================
+                          ADMINISTRAÇÃO - /api/adminmanagement
+===============================================================================
+   
+   BODY (JSON):
+   {
+       "email": "string"    // Obrigatório, email do administrador
+   }
+   
+   EXEMPLO:
+   {
+       "email": "admin@election-system.com"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "",
+       "data": {
+           "message": "Token de verificação enviado por email",
+           "expiresInMinutes": 5
+       }
+   }
+
+===============================================================================
+                        GERENCIAMENTO DE ADMINISTRADORES - /api/adminmanagement  
+===============================================================================
+
+TODOS OS ENDPOINTS REQUEREM AUTENTICAÇÃO JWT DE ADMINISTRADOR OU MASTER
+HEADERS OBRIGATÓRIOS:
+Authorization: Bearer {token}
+Content-Type: application/json
+
+NOTAS IMPORTANTES:
+- Usuários com role "master" têm acesso total a todos os endpoints
+- Usuários com role "admin" têm acesso limitado baseado em suas permissões
+- O usuário master (Lohran Fagundes) pode gerenciar todos os administradores
+
+1. LISTAR ADMINISTRADORES
+   Método: GET
+   Endpoint: /api/adminmanagement
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 10)
+   
+   EXEMPLO:
+   GET /api/adminmanagement?page=1&limit=10
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "",
+       "data": {
+           "items": [
+               {
+                   "id": 1,
+                   "name": "Administrator",
+                   "email": "admin@election-system.com",
+                   "role": "admin",
+                   "permissions": "{\"elections\": [\"create\", \"read\", \"update\", \"delete\"]}",
+                   "isActive": true,
+                   "isSuper": true,
+                   "isMaster": false,
+                   "lastLoginAt": "2025-07-31T22:26:14",
+                   "lastLoginIp": "192.168.65.1",
+                   "createdAt": "2025-07-31T22:25:27",
+                   "updatedAt": "2025-07-31T22:26:14"
+               },
+               {
+                   "id": 2,
+                   "name": "Lohran Fagundes",
+                   "email": "lohran@funcorsan.com.br",
+                   "role": "master",
+                   "permissions": "{\"elections\": [\"create\", \"read\", \"update\", \"delete\"], \"admin_management\": [\"create\", \"read\", \"update\", \"delete\"], \"system\": [\"read\", \"manage\"]}",
+                   "isActive": true,
+                   "isSuper": true,
+                   "isMaster": true,
+                   "lastLoginAt": "2025-08-01T10:15:30",
+                   "lastLoginIp": "192.168.1.100",
+                   "createdAt": "2025-08-01T10:00:00",
+                   "updatedAt": "2025-08-01T10:15:30"
+               }
+           ],
+           "totalItems": 2,
+           "totalPages": 1,
+           "currentPage": 1,
+           "hasNextPage": false,
+           "hasPreviousPage": false
+       }
+   }
+
+2. OBTER ADMINISTRADOR POR ID
+   Método: GET
+   Endpoint: /api/adminmanagement/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/adminmanagement/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "",
+       "data": {
+           "id": 1,
+           "name": "Administrator",
+           "email": "admin@election-system.com",
+           "role": "admin",
+           "permissions": "{\"elections\": [\"create\", \"read\", \"update\", \"delete\"]}",
+           "isActive": true,
+           "isSuper": true,
+           "lastLoginAt": "2025-07-31T22:26:14",
+           "lastLoginIp": "192.168.65.1",
+           "createdAt": "2025-07-31T22:25:27",
+           "updatedAt": "2025-07-31T22:26:14"
+       }
+   }
+
+3. CRIAR NOVO ADMINISTRADOR
+   Método: POST
+   Endpoint: /api/adminmanagement
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "name": "string",                // Obrigatório, máx 100 caracteres
+       "email": "string",               // Obrigatório, formato email
+       "password": "string",            // Obrigatório, máx 128 caracteres
+       "role": "string",                // Opcional, padrão: "admin"
+       "permissions": "string",         // Opcional, JSON de permissões
+       "isActive": boolean,             // Opcional, padrão: true
+       "isSuper": boolean              // Opcional, padrão: false
+   }
+   
+   EXEMPLO:
+   {
+       "name": "João Silva",
+       "email": "joao.silva@election-system.com",
+       "password": "senha123segura",
+       "role": "admin",
+       "permissions": "{\"elections\": [\"read\", \"update\"]}",
+       "isActive": true,
+       "isSuper": false,
+       "isMaster": false
+   }
+   
+   RESPOSTA (201 Created):
+   {
+       "success": true,
+       "message": "Administrador criado com sucesso",
+       "data": {
+           "id": 2,
+           "name": "João Silva",
+           "email": "joao.silva@election-system.com",
+           "role": "admin",
+           "permissions": "{\"elections\": [\"read\", \"update\"]}",
+           "isActive": true,
+           "isSuper": false,
+           "lastLoginAt": null,
+           "lastLoginIp": null,
+           "createdAt": "2025-07-31T22:30:15",
+           "updatedAt": "2025-07-31T22:30:15"
+       }
+   }
+
+4. ATUALIZAR ADMINISTRADOR
+   Método: PUT
+   Endpoint: /api/adminmanagement/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON) - Todos os campos opcionais:
+   {
+       "name": "string",                // Opcional
+       "email": "string",               // Opcional
+       "password": "string",            // Opcional
+       "role": "string",                // Opcional
+       "permissions": "string",         // Opcional
+       "isActive": boolean,             // Opcional
+       "isSuper": boolean              // Opcional
+   }
+   
+   EXEMPLO:
+   PUT /api/adminmanagement/2
+   {
+       "name": "João Silva Santos",
+       "email": "joao.santos@election-system.com"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Administrador atualizado com sucesso",
+       "data": {
+           "id": 2,
+           "name": "João Silva Santos",
+           "email": "joao.santos@election-system.com",
+           // ... campos atualizados
+       }
+   }
+
+5. DESATIVAR ADMINISTRADOR (SOFT DELETE)
+   Método: DELETE
+   Endpoint: /api/adminmanagement/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   DELETE /api/adminmanagement/2
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Administrador desativado com sucesso",
+       "data": null
+   }
+   
+   NOTA: Não é possível desativar sua própria conta.
+
+6. REATIVAR ADMINISTRADOR
+   Método: POST
+   Endpoint: /api/adminmanagement/{id}/reactivate
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   POST /api/adminmanagement/2/reactivate
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Administrador reativado com sucesso",
+       "data": null
+   }
+
+===============================================================================
+                            ELEIÇÕES - /api/election
+===============================================================================
+
+TODOS OS ENDPOINTS DE ELEIÇÕES REQUEREM AUTENTICAÇÃO JWT
+HEADERS OBRIGATÓRIOS:
+Authorization: Bearer {token}
+Content-Type: application/json
+
+5. LISTAR ELEIÇÕES (Admin Only)
+   Método: GET
+   Endpoint: /api/election
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 10)
+   - status: Filtro por status (draft, scheduled, active, completed, cancelled)
+   - type: Filtro por tipo (internal, external, etc.)
+   
+   EXEMPLO DE URL:
+   GET /api/election?page=1&limit=20&status=active&type=internal
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "items": [
+               {
+                   "id": 1,
+                   "title": "Eleição de Exemplo 2024",
+                   "description": "Descrição da eleição",
+                   "electionType": "internal",
+                   "status": "draft",
+                   "startDate": "2024-12-01T09:00:00",
+                   "endDate": "2024-12-01T18:00:00",
+                   "timezone": "America/Sao_Paulo",
+                   "allowBlankVotes": true,
+                   "allowNullVotes": true,
+                   "requireJustification": false,
+                   "maxVotesPerVoter": 1,
+                   "votingMethod": "single_choice",
+                   "resultsVisibility": "after_election",
+                   "createdBy": 1,
+                   "updatedBy": 1,
+                   "createdAt": "2024-01-01T10:00:00",
+                   "updatedAt": "2024-01-01T10:00:00"
+               }
+           ],
+           "totalItems": 1,
+           "totalPages": 1,
+           "currentPage": 1,
+           "hasNextPage": false,
+           "hasPreviousPage": false
+       }
+   }
+
+6. BUSCAR ELEIÇÃO POR ID (Admin Only)
+   Método: GET
+   Endpoint: /api/election/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/election/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "id": 1,
+           "title": "Eleição de Exemplo 2024",
+           "description": "Descrição da eleição",
+           "electionType": "internal",
+           "status": "draft",
+           "startDate": "2024-12-01T09:00:00",
+           "endDate": "2024-12-01T18:00:00",
+           "timezone": "America/Sao_Paulo",
+           "allowBlankVotes": true,
+           "allowNullVotes": true,
+           "requireJustification": false,
+           "maxVotesPerVoter": 1,
+           "votingMethod": "single_choice",
+           "resultsVisibility": "after_election",
+           "createdBy": 1,
+           "updatedBy": 1,
+           "createdAt": "2024-01-01T10:00:00",
+           "updatedAt": "2024-01-01T10:00:00"
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Eleição não encontrada
+
+7. CRIAR NOVA ELEIÇÃO (Admin Only)
+   Método: POST
+   Endpoint: /api/election
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "title": "string",              // Obrigatório, máx 255 caracteres
+       "description": "string",        // Opcional
+       "electionType": "string",       // Padrão: "internal", máx 50 caracteres
+       "startDate": "2024-12-01T09:00:00",  // Obrigatório, formato ISO 8601
+       "endDate": "2024-12-01T18:00:00",    // Obrigatório, formato ISO 8601
+       "timezone": "string",           // Padrão: "America/Sao_Paulo", máx 100 caracteres
+       "allowBlankVotes": boolean,     // Padrão: false
+       "allowNullVotes": boolean,      // Padrão: false
+       "requireJustification": boolean, // Padrão: false
+       "maxVotesPerVoter": integer,    // Padrão: 1
+       "votingMethod": "string",       // Padrão: "single_choice", máx 20 caracteres
+       "resultsVisibility": "string"   // Padrão: "after_election", máx 20 caracteres
+   }
+   
+   EXEMPLO:
+   {
+       "title": "Eleição Teste 2024",
+       "description": "Eleição para teste do sistema",
+       "electionType": "internal",
+       "startDate": "2024-12-01T09:00:00",
+       "endDate": "2024-12-01T18:00:00",
+       "timezone": "America/Sao_Paulo",
+       "allowBlankVotes": true,
+       "allowNullVotes": false,
+       "requireJustification": false,
+       "maxVotesPerVoter": 1,
+       "votingMethod": "single_choice",
+       "resultsVisibility": "after_election"
+   }
+   
+   RESPOSTA (201 Created):
+   {
+       "success": true,
+       "message": "Election created successfully",
+       "data": {
+           "id": 2,
+           "title": "Eleição Teste 2024",
+           "description": "Eleição para teste do sistema",
+           "electionType": "internal",
+           "status": "draft",
+           "startDate": "2024-12-01T09:00:00",
+           "endDate": "2024-12-01T18:00:00",
+           "timezone": "America/Sao_Paulo",
+           "allowBlankVotes": true,
+           "allowNullVotes": false,
+           "requireJustification": false,
+           "maxVotesPerVoter": 1,
+           "votingMethod": "single_choice",
+           "resultsVisibility": "after_election",
+           "createdBy": 1,
+           "updatedBy": 1,
+           "createdAt": "2024-01-01T10:00:00",
+           "updatedAt": "2024-01-01T10:00:00"
+       }
+   }
+
+8. ATUALIZAR ELEIÇÃO (Admin Only)
+   Método: PUT
+   Endpoint: /api/election/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON) - Todos os campos opcionais:
+   {
+       "title": "string",              // Opcional, máx 255 caracteres
+       "description": "string",        // Opcional
+       "electionType": "string",       // Opcional, máx 50 caracteres
+       "startDate": "2024-12-01T09:00:00",  // Opcional, formato ISO 8601
+       "endDate": "2024-12-01T18:00:00",    // Opcional, formato ISO 8601
+       "timezone": "string",           // Opcional, máx 100 caracteres
+       "allowBlankVotes": boolean,     // Opcional
+       "allowNullVotes": boolean,      // Opcional
+       "requireJustification": boolean, // Opcional
+       "maxVotesPerVoter": integer,    // Opcional
+       "votingMethod": "string",       // Opcional, máx 20 caracteres
+       "resultsVisibility": "string"   // Opcional, máx 20 caracteres
+   }
+   
+   EXEMPLO:
+   PUT /api/election/1
+   {
+       "title": "Eleição Atualizada 2024",
+       "description": "Descrição atualizada"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Election updated successfully",
+       "data": {
+           "id": 1,
+           "title": "Eleição Atualizada 2024",
+           "description": "Descrição atualizada",
+           // ... outros campos
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Eleição não encontrada
+
+9. DELETAR ELEIÇÃO (Admin Only)
+   Método: DELETE
+   Endpoint: /api/election/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   DELETE /api/election/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Election deleted successfully",
+       "data": null
+   }
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Eleição não encontrada
+
+10. ATUALIZAR STATUS DA ELEIÇÃO (Admin Only)
+    Método: PATCH
+    Endpoint: /api/election/{id}/status
+    Autenticação: Admin (Bearer Token)
+    
+    BODY (JSON):
+    {
+        "status": "string"  // Obrigatório: draft, scheduled, active, completed, cancelled
+    }
+    
+    EXEMPLO:
+    PATCH /api/election/1/status
+    {
+        "status": "active"
+    }
+    
+    RESPOSTA (200 OK):
+    {
+        "success": true,
+        "message": "Election status updated successfully",
+        "data": null
+    }
+    
+    POSSÍVEIS ERROS:
+    - 400 Bad Request: Status inválido
+    - 404 Not Found: Eleição não encontrada
+
+11. BUSCAR ELEIÇÕES ATIVAS (Público)
+    Método: GET
+    Endpoint: /api/election/active
+    Autenticação: Não requerida
+    
+    RESPOSTA (200 OK):
+    {
+        "success": true,
+        "message": "Success",
+        "data": [
+            {
+                "id": 1,
+                "title": "Eleição Ativa 2024",
+                "description": "Descrição da eleição ativa",
+                "startDate": "2024-12-01T09:00:00",
+                "endDate": "2024-12-01T18:00:00"
+            }
+        ]
+    }
+
+===============================================================================
+                                CÓDIGOS DE STATUS
+===============================================================================
+
+200 OK - Requisição bem-sucedida
+201 Created - Recurso criado com sucesso
+400 Bad Request - Dados inválidos na requisição
+401 Unauthorized - Token inválido ou não fornecido
+403 Forbidden - Acesso negado (conta inativa, permissões insuficientes)
+404 Not Found - Recurso não encontrado
+500 Internal Server Error - Erro interno do servidor
+
+===============================================================================
+                        SISTEMA DE CANDIDATOS - /api/candidate
+===============================================================================
+
+ENDPOINTS PARA GERENCIAMENTO DE CANDIDATOS COM SISTEMA HÍBRIDO DE FOTOS
+SUPORTA UPLOAD DE FOTOS COMO ARQUIVOS FÍSICOS E DADOS BLOB OTIMIZADOS
+
+1. LISTAR CANDIDATOS (Admin Only)
+   Método: GET
+   Endpoint: /api/candidate
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 10)
+   - positionId: Filtro por cargo
+   - isActive: Filtro por status ativo (true/false)
+   
+   EXEMPLO:
+   GET /api/candidate?page=1&limit=20&positionId=1&isActive=true
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "items": [
+               {
+                   "id": 1,
+                   "name": "Maria Santos",
+                   "number": "10",
+                   "description": "Candidata experiente",
+                   "biography": "Biografia da candidata...",
+                   "photoUrl": "/uploads/candidates/maria.jpg",
+                   "hasPhoto": true,
+                   "hasPhotoFile": true,
+                   "hasPhotoBlob": false,
+                   "photoStorageType": "file",
+                   "photoMimeType": null,
+                   "photoFileName": null,
+                   "orderPosition": 1,
+                   "isActive": true,
+                   "positionId": 1,
+                   "positionTitle": "Prefeito",
+                   "votesCount": 0,
+                   "createdAt": "2024-01-01T10:00:00",
+                   "updatedAt": "2024-01-01T10:00:00"
+               }
+           ],
+           "totalItems": 1,
+           "totalPages": 1,
+           "currentPage": 1,
+           "hasNextPage": false,
+           "hasPreviousPage": false
+       }
+   }
+
+2. BUSCAR CANDIDATO POR ID (Admin Only)
+   Método: GET
+   Endpoint: /api/candidate/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/candidate/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "id": 1,
+           "name": "Maria Santos",
+           "number": "10",
+           "description": "Candidata experiente",
+           "biography": "Biografia completa...",
+           "photoUrl": "/uploads/candidates/maria.jpg",
+           "hasPhoto": true,
+           "hasPhotoFile": true,
+           "hasPhotoBlob": false,
+           "photoStorageType": "file",
+           "photoMimeType": null,
+           "photoFileName": null,
+           "orderPosition": 1,
+           "isActive": true,
+           "positionId": 1,
+           "positionTitle": "Prefeito",
+           "votesCount": 0,
+           "createdAt": "2024-01-01T10:00:00",
+           "updatedAt": "2024-01-01T10:00:00"
+       }
+   }
+
+3. BUSCAR CANDIDATOS POR CARGO (Público)
+   Método: GET
+   Endpoint: /api/candidate/position/{positionId}
+   Autenticação: Não requerida
+   
+   EXEMPLO:
+   GET /api/candidate/position/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": [
+           {
+               "id": 1,
+               "name": "Maria Santos",
+               "number": "10",
+               "description": "Candidata experiente",
+               "photoUrl": "/uploads/candidates/maria.jpg",
+               "hasPhoto": true,
+               "photoStorageType": "file",
+               "orderPosition": 1,
+               "isActive": true,
+               "positionId": 1,
+               "positionTitle": "Prefeito"
+           }
+       ]
+   }
+
+4. CRIAR NOVO CANDIDATO (Admin Only)
+   Método: POST
+   Endpoint: /api/candidate
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "name": "string",           // Obrigatório, máx 100 caracteres
+       "number": "string",         // Opcional, máx 20 caracteres
+       "description": "string",    // Opcional
+       "biography": "string",      // Opcional
+       "photoUrl": "string",       // Opcional, URL válida, máx 255 chars
+       "orderPosition": integer,   // Padrão: 1, range 1-100
+       "positionId": integer       // Obrigatório
+   }
+   
+   EXEMPLO:
+   {
+       "name": "Carlos Oliveira",
+       "number": "20",
+       "description": "Candidato jovem e inovador",
+       "biography": "Biografia completa do candidato...",
+       "photoUrl": "/uploads/candidates/carlos.jpg",
+       "orderPosition": 2,
+       "positionId": 1
+   }
+   
+   RESPOSTA (201 Created):
+   {
+       "success": true,
+       "message": "Candidate created successfully",
+       "data": {
+           "id": 2,
+           "name": "Carlos Oliveira",
+           // ... outros campos
+       }
+   }
+
+5. ATUALIZAR CANDIDATO (Admin Only)
+   Método: PUT
+   Endpoint: /api/candidate/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON) - Todos os campos opcionais:
+   {
+       "name": "string",           // Opcional, máx 100 caracteres
+       "number": "string",         // Opcional, máx 20 caracteres
+       "description": "string",    // Opcional
+       "biography": "string",      // Opcional
+       "photoUrl": "string",       // Opcional, URL válida
+       "photoData": "base64",      // Opcional, dados BLOB em base64
+       "photoMimeType": "string",  // Opcional, tipo MIME da imagem
+       "photoFileName": "string",  // Opcional, nome do arquivo
+       "orderPosition": integer,   // Opcional, range 1-100
+       "isActive": boolean         // Opcional
+   }
+   
+   EXEMPLO:
+   PUT /api/candidate/1
+   {
+       "name": "Maria Santos Silva",
+       "description": "Candidata com experiência atualizada",
+       "isActive": true
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Candidate updated successfully",
+       "data": {
+           "id": 1,
+           "name": "Maria Santos Silva",
+           // ... campos atualizados
+       }
+   }
+
+6. DELETAR CANDIDATO (Admin Only)
+   Método: DELETE
+   Endpoint: /api/candidate/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   DELETE /api/candidate/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Candidate deleted successfully",
+       "data": null
+   }
+
+7. UPLOAD DE FOTO TRADICIONAL (Admin Only)
+   Método: POST
+   Endpoint: /api/candidate/{id}/upload-photo
+   Autenticação: Admin (Bearer Token)
+   Content-Type: multipart/form-data
+   
+   FORM DATA:
+   - photo: Arquivo de imagem (JPG, PNG, GIF)
+   - Tamanho máximo: 5MB
+   
+   EXEMPLO:
+   POST /api/candidate/1/upload-photo
+   Content-Type: multipart/form-data
+   
+   Form data:
+   photo: [arquivo de imagem]
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Photo uploaded successfully",
+       "data": {
+           "photoUrl": "/uploads/candidates/1_abc123.jpg"
+       }
+   }
+
+8. UPLOAD DE FOTO OTIMIZADA (BLOB) - NOVO! (Admin Only)
+   Método: POST
+   Endpoint: /api/candidate/{id}/upload-photo-blob
+   Autenticação: Admin (Bearer Token)
+   Content-Type: multipart/form-data
+   
+   FUNCIONALIDADES AVANÇADAS:
+   - Redimensionamento automático (máx 800x600)
+   - Conversão para JPEG com qualidade 85%
+   - Compressão otimizada com ImageSharp
+   - Armazenamento como BLOB no banco de dados
+   - Suporte a JPG, PNG, GIF, WebP
+   - Tamanho máximo: 10MB
+   
+   FORM DATA:
+   - photo: Arquivo de imagem
+   
+   EXEMPLO:
+   POST /api/candidate/1/upload-photo-blob
+   Content-Type: multipart/form-data
+   
+   Form data:
+   photo: [arquivo de imagem de qualquer tamanho]
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Photo uploaded and optimized successfully",
+       "data": {
+           "message": "Photo uploaded and optimized successfully",
+           "fileName": "1_20200101_120000.jpg",
+           "mimeType": "image/jpeg",
+           "sizeBytes": 85420,
+           "storageType": "blob"
+       }
+   }
+
+9. OBTER FOTO INTELIGENTE - NOVO! (Público)
+   Método: GET
+   Endpoint: /api/candidate/{id}/photo
+   Autenticação: Não requerida
+   
+   SISTEMA HÍBRIDO INTELIGENTE:
+   - Prioriza BLOB sobre arquivo físico automaticamente
+   - Retorna Base64 data URL para BLOB
+   - Fallback para arquivo físico se BLOB não disponível
+   - Detecta automaticamente o melhor tipo de armazenamento
+   - Audit log detalhado para rastreamento
+   
+   EXEMPLO:
+   GET /api/candidate/1/photo
+   
+   RESPOSTA PARA FOTO BLOB (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "photoUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEA...",
+           "hasPhoto": true,
+           "storageType": "blob",
+           "mimeType": "image/jpeg",
+           "fileName": "1_20200101_120000.jpg",
+           "sizeBytes": 85420,
+           "candidateName": "Maria Santos"
+       }
+   }
+   
+   RESPOSTA PARA FOTO ARQUIVO (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "photoUrl": "/uploads/candidates/maria.jpg",
+           "hasPhoto": true,
+           "storageType": "file",
+           "fullUrl": "http://localhost:5110/uploads/candidates/maria.jpg",
+           "candidateName": "Maria Santos"
+       }
+   }
+   
+   RESPOSTA SEM FOTO (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "photoUrl": null,
+           "hasPhoto": false,
+           "storageType": "none",
+           "message": "No photo available for this candidate"
+       }
+   }
+
+10. REORDENAR CANDIDATOS (Admin Only)
+    Método: PUT
+    Endpoint: /api/candidate/position/{positionId}/reorder
+    Autenticação: Admin (Bearer Token)
+    
+    BODY (JSON):
+    {
+        "1": 3,    // candidateId: nova posição
+        "2": 1,    // candidateId: nova posição
+        "3": 2     // candidateId: nova posição
+    }
+    
+    EXEMPLO:
+    PUT /api/candidate/position/1/reorder
+    {
+        "1": 2,
+        "2": 1
+    }
+    
+    RESPOSTA (200 OK):
+    {
+        "success": true,
+        "message": "Candidates reordered successfully",
+        "data": null
+    }
+
+11. BUSCAR CANDIDATOS COM VOTOS (Admin Only)
+    Método: GET
+    Endpoint: /api/candidate/position/{positionId}/with-votes
+    Autenticação: Admin (Bearer Token)
+    
+    EXEMPLO:
+    GET /api/candidate/position/1/with-votes
+    
+    RESPOSTA (200 OK):
+    {
+        "success": true,
+        "message": "Success",
+        "data": [
+            {
+                "id": 1,
+                "name": "Maria Santos",
+                "number": "10",
+                "description": "Candidata experiente",
+                "photoUrl": "/uploads/candidates/maria.jpg",
+                "positionId": 1,
+                "positionTitle": "Prefeito", 
+                "totalVotes": 150,
+                "votePercentage": 65.5
+            },
+            {
+                "id": 2,
+                "name": "Carlos Oliveira",
+                "number": "20",
+                "description": "Candidato jovem",
+                "photoUrl": null,
+                "positionId": 1,
+                "positionTitle": "Prefeito",
+                "totalVotes": 79,
+                "votePercentage": 34.5
+            }
+        ]
+    }
+
+===============================================================================
+                        SISTEMA DE CARGOS/POSIÇÕES - /api/position
+===============================================================================
+
+ENDPOINTS PARA GERENCIAMENTO DE CARGOS ELEITORAIS
+
+1. LISTAR CARGOS (Admin Only)
+   Método: GET
+   Endpoint: /api/position
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 10)
+   - isActive: Filtro por status ativo
+   
+   EXEMPLO:
+   GET /api/position?page=1&limit=20&isActive=true
+
+2. BUSCAR CARGO POR ID (Admin Only)
+   Método: GET
+   Endpoint: /api/position/{id}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/position/1
+
+3. CRIAR NOVO CARGO (Admin Only)
+   Método: POST
+   Endpoint: /api/position
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "title": "string",          // Obrigatório, máx 100 caracteres
+       "description": "string",    // Opcional
+       "maxCandidates": integer,   // Padrão: 10
+       "orderPosition": integer,   // Padrão: 1
+       "isActive": boolean         // Padrão: true
+   }
+
+4. ATUALIZAR CARGO (Admin Only)
+   Método: PUT
+   Endpoint: /api/position/{id}
+   Autenticação: Admin (Bearer Token)
+
+5. DELETAR CARGO (Admin Only)
+   Método: DELETE
+   Endpoint: /api/position/{id}
+   Autenticação: Admin (Bearer Token)
+
+6. BUSCAR CARGOS ATIVOS (Público)
+   Método: GET
+   Endpoint: /api/position/active
+   Autenticação: Não requerida
+
+===============================================================================
+                        SISTEMA DE ELEITORES - /api/voter
+===============================================================================
+
+ENDPOINTS PARA GERENCIAMENTO DE ELEITORES
+
+1. LISTAR ELEITORES (Admin Only)
+   Método: GET
+   Endpoint: /api/voter
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 10)
+   - isActive: Filtro por status ativo
+   - isVerified: Filtro por verificação
+
+2. BUSCAR ELEITOR POR ID (Admin Only)
+   Método: GET
+   Endpoint: /api/voter/{id}
+   Autenticação: Admin (Bearer Token)
+
+3. CRIAR NOVO ELEITOR (Admin Only)
+   Método: POST
+   Endpoint: /api/voter
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "name": "string",           // Obrigatório, máx 100 caracteres
+       "email": "string",          // Obrigatório, formato email
+       "cpf": "string",            // Obrigatório, 11 dígitos
+       "password": "string",       // Obrigatório, mín 6 caracteres
+       "phoneNumber": "string",    // Opcional
+       "voteWeight": decimal,      // Padrão: 1.0
+       "isActive": boolean,        // Padrão: true
+       "isVerified": boolean       // Padrão: false
+   }
+
+4. ATUALIZAR ELEITOR (Admin Only)
+   Método: PUT
+   Endpoint: /api/voter/{id}
+   Autenticação: Admin (Bearer Token)
+
+5. DELETAR ELEITOR (Admin Only)
+   Método: DELETE
+   Endpoint: /api/voter/{id}
+   Autenticação: Admin (Bearer Token)
+
+6. ATIVAR/DESATIVAR ELEITOR (Admin Only)
+   Método: PATCH
+   Endpoint: /api/voter/{id}/toggle-status
+   Autenticação: Admin (Bearer Token)
+
+7. VERIFICAR ELEITOR (Admin Only)
+   Método: PATCH
+   Endpoint: /api/voter/{id}/verify
+   Autenticação: Admin (Bearer Token)
+
+===============================================================================
+                        PORTAL DE VOTAÇÃO - /api/voting-portal
+===============================================================================
+
+ENDPOINTS OTIMIZADOS PARA INTERFACES DE VOTAÇÃO
+SISTEMA INTELIGENTE DE VALIDAÇÃO E CANDIDATOS SIMPLIFICADOS
+
+CARACTERÍSTICAS ESPECIAIS:
+- Validação automática de eleição ativa e lacrada
+- Dados otimizados para portal de votação
+- Sistema híbrido de fotos (URL + Base64)
+- Ordenação inteligente de candidatos e posições
+- Verificação de período de votação com timezone
+- Auditoria completa de acessos
+
+1. OBTER DADOS COMPLETOS PARA VOTAÇÃO (Público)
+   Método: GET
+   Endpoint: /api/voting-portal/elections/{electionId}/candidates
+   Autenticação: Não requerida
+   
+   DESCRIÇÃO:
+   Retorna dados completos da eleição otimizados para portal de votação,
+   incluindo todas as posições e candidatos organizados hierarquicamente.
+   Aplica automaticamente validações de segurança e período de votação.
+   
+   EXEMPLO:
+   GET /api/voting-portal/elections/1/candidates
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Voting candidates retrieved successfully",
+       "data": {
+           "id": 1,
+           "title": "Eleição Municipal 2024",
+           "description": "Eleição para prefeito e vereadores",
+           "allowBlankVotes": true,
+           "allowNullVotes": false,
+           "requireJustification": false,
+           "maxVotesPerVoter": 1,
+           "votingMethod": "single_choice",
+           "positions": [
+               {
+                   "id": 1,
+                   "name": "Prefeito",
+                   "description": "Candidatos a Prefeito Municipal",
+                   "maxVotes": 1,
+                   "orderPosition": 1,
+                   "candidates": [
+                       {
+                           "id": 1,
+                           "name": "Maria Santos Silva",
+                           "number": "10",
+                           "party": "Partido Democrático",
+                           "description": "Candidata com experiência em gestão pública",
+                           "photoUrl": "/uploads/candidates/maria.jpg",
+                           "photoBase64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABA...",
+                           "positionId": 1,
+                           "positionName": "Prefeito",
+                           "orderPosition": 1
+                       },
+                       {
+                           "id": 2,
+                           "name": "Carlos Oliveira",
+                           "number": "20",
+                           "party": "Partido Social",
+                           "description": "Jovem empresário com foco em inovação",
+                           "photoUrl": null,
+                           "photoBase64": null,
+                           "positionId": 1,
+                           "positionName": "Prefeito",
+                           "orderPosition": 2
+                       }
+                   ]
+               },
+               {
+                   "id": 2,
+                   "name": "Vereador",
+                   "description": "Candidatos a Vereador Municipal",
+                   "maxVotes": 3,
+                   "orderPosition": 2,
+                   "candidates": [
+                       {
+                           "id": 3,
+                           "name": "Ana Costa",
+                           "number": "1001",
+                           "party": "Partido Verde",
+                           "description": "Advogada especialista em direito ambiental",
+                           "photoUrl": null,
+                           "photoBase64": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgA...",
+                           "positionId": 2,
+                           "positionName": "Vereador",
+                           "orderPosition": 1
+                       }
+                   ]
+               }
+           ]
+       }
+   }
+   
+   VALIDAÇÕES AUTOMÁTICAS APLICADAS:
+   - Eleição deve estar com status "active"
+   - Eleição deve estar lacrada (IsSealed = true)
+   - Data atual deve estar dentro do período de votação
+   - Considera timezone configurado na eleição
+   - Apenas candidatos ativos são retornados
+   - Ordenação por posição e número do candidato
+   
+   POSSÍVEIS ERROS:
+   - 400 Bad Request: Eleição não disponível para votação
+   - 404 Not Found: Eleição não encontrada
+   - 500 Internal Server Error: Erro interno
+
+2. VALIDAR ELEIÇÃO PARA VOTAÇÃO (Público)
+   Método: GET
+   Endpoint: /api/voting-portal/elections/{electionId}/validate
+   Autenticação: Não requerida
+   
+   DESCRIÇÃO:
+   Valida se uma eleição está apta para receber votos, verificando
+   todas as regras de negócio: lacre, status, período de votação.
+   Retorna informações detalhadas sobre o status da validação.
+   
+   EXEMPLO:
+   GET /api/voting-portal/elections/1/validate
+   
+   RESPOSTA (200 OK) - ELEIÇÃO VÁLIDA:
+   {
+       "success": true,
+       "message": "Election validation completed",
+       "data": {
+           "isValid": true,
+           "isSealed": true,
+           "isActive": true,
+           "isInVotingPeriod": true,
+           "status": "active",
+           "startDate": "2024-12-01T09:00:00",
+           "endDate": "2024-12-01T18:00:00",
+           "validationMessage": "Election is valid for voting",
+           "validationErrors": []
+       }
+   }
+   
+   RESPOSTA (200 OK) - ELEIÇÃO INVÁLIDA:
+   {
+       "success": true,
+       "message": "Election validation completed",
+       "data": {
+           "isValid": false,
+           "isSealed": false,
+           "isActive": false,
+           "isInVotingPeriod": false,
+           "status": "draft",
+           "startDate": "2024-12-01T09:00:00",
+           "endDate": "2024-12-01T18:00:00",
+           "validationMessage": "Election must be sealed before voting can begin; Election status must be 'active', current status: 'draft'; Voting has not started yet. Starts at: 2024-12-01 09:00:00 America/Sao_Paulo",
+           "validationErrors": [
+               "Election must be sealed before voting can begin",
+               "Election status must be 'active', current status: 'draft'",
+               "Voting has not started yet. Starts at: 2024-12-01 09:00:00 America/Sao_Paulo"
+           ]
+       }
+   }
+   
+   REGRAS DE VALIDAÇÃO:
+   1. Eleição deve estar lacrada (IsSealed = true)
+   2. Status deve ser "active"
+   3. Data/hora atual deve estar entre StartDate e EndDate
+   4. Considera timezone da eleição para conversão UTC
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Eleição não encontrada
+   - 500 Internal Server Error: Erro na validação
+
+3. OBTER CANDIDATOS POR POSIÇÃO (Público)
+   Método: GET
+   Endpoint: /api/voting-portal/positions/{positionId}/candidates
+   Autenticação: Não requerida
+   
+   DESCRIÇÃO:
+   Retorna apenas os candidatos de uma posição específica,
+   aplicando as mesmas validações de eleição ativa e lacrada.
+   Útil para carregamento incremental ou interfaces especializadas.
+   
+   EXEMPLO:
+   GET /api/voting-portal/positions/1/candidates
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Candidates retrieved successfully",
+       "data": [
+           {
+               "id": 1,
+               "name": "Maria Santos Silva",
+               "number": "10",
+               "party": "Partido Democrático",
+               "description": "Candidata com experiência em gestão pública",
+               "photoUrl": "/uploads/candidates/maria.jpg",
+               "photoBase64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABA...",
+               "positionId": 1,
+               "positionName": "Prefeito",
+               "orderPosition": 1
+           },
+           {
+               "id": 2,
+               "name": "Carlos Oliveira",
+               "number": "20",
+               "party": "Partido Social",
+               "description": "Jovem empresário com foco em inovação",
+               "photoUrl": null,
+               "photoBase64": null,
+               "positionId": 1,
+               "positionName": "Prefeito",
+               "orderPosition": 2
+           }
+       ]
+   }
+   
+   VALIDAÇÕES APLICADAS:
+   - A eleição da posição deve estar válida para votação
+   - Apenas candidatos ativos são retornados
+   - Ordenação por orderPosition e número
+   
+   POSSÍVEIS ERROS:
+   - 400 Bad Request: Eleição não disponível para votação
+   - 404 Not Found: Posição não encontrada
+   - 500 Internal Server Error: Erro interno
+
+CARACTERÍSTICAS DO SISTEMA HÍBRIDO DE FOTOS:
+- photoUrl: Link para arquivo físico (quando disponível)
+- photoBase64: Imagem em formato base64 data URL (quando BLOB disponível)
+- Prioridade automática: BLOB > Arquivo físico
+- Fallback inteligente entre os dois formatos
+- Otimização automática de imagens BLOB (800x600, JPEG 85%)
+
+LOGS E AUDITORIA:
+- Todos os acessos são registrados no sistema de auditoria
+- Inclui IP, User Agent e timestamp
+- Registra tentativas de acesso a eleições inválidas
+- Monitora performance de carregamento de candidatos
+
+CASOS DE USO TÍPICOS:
+1. Portal Web: Usar endpoint completo /elections/{id}/candidates
+2. App Mobile: Usar endpoint por posição para carregamento otimizado
+3. Sistemas terceiros: Validar eleição antes de mostrar interface
+4. Auditoria: Verificar logs de acesso aos dados de votação
+
+INTEGRAÇÃO COM SISTEMA DE VOTAÇÃO:
+- Use estes endpoints para mostrar candidatos ao eleitor
+- Combine com /api/voting/login para autenticação do eleitor
+- Use /api/voting/cast-vote para registrar o voto
+- Valide sempre a eleição antes de permitir interface de votação
+
+===============================================================================
+                              DADOS DE TESTE PADRÃO
+===============================================================================
+
+ADMIN PADRÃO:
+Email: admin@election-system.com
+Senha: admin123
+Permissões: Administrador completo
+Autenticação: JWT direta
+Tipo: Super Administrador
+
+ELEITOR DE EXEMPLO:
+Email: joao@example.com
+Senha: voter123
+Status: Ativo e verificado
+
+ELEIÇÃO DE EXEMPLO:
+ID: 1
+Título: "Eleição de Exemplo 2024"
+Status: Draft
+Candidatos: Maria Santos (10) e Carlos Oliveira (20)
+
+CARGO DE EXEMPLO:
+ID: 1
+Título: "Prefeito"
+Máximo de candidatos: 10
+Status: Ativo
+
+===============================================================================
+                            AUTENTICAÇÃO JWT
+===============================================================================
+
+COMO USAR AUTENTICAÇÃO TRADICIONAL:
+1. Faça login via POST /api/auth/voter/login (eleitores)
+2. Extraia o token da resposta (campo "token")
+3. Inclua o token no header Authorization de requisições protegidas:
+   Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+AUTENTICAÇÃO SIMPLIFICADA:
+Após a versão 1.2.0, o sistema usa apenas autenticação JWT direta.
+Todos os administradores fazem login com email e senha, recebendo diretamente o token JWT.
+
+TEMPO DE EXPIRAÇÃO:
+- Admin: 1 hora (3600 segundos)
+- Voter: 5 minutos (300 segundos)
+
+VALIDAÇÃO:
+Use POST /api/auth/validate para verificar se um token ainda é válido
+
+===============================================================================
+                              LOGS E AUDITORIA
+===============================================================================
+
+Todas as ações importantes são registradas automaticamente:
+- Logins e logouts
+- Criação, edição e exclusão de eleições
+- Mudanças de status de eleições
+- Tentativas de acesso negado
+
+Os logs incluem:
+- ID do usuário
+- Tipo de ação
+- Timestamp
+- IP de origem
+- Dados relevantes da ação
+
+===============================================================================
+                                CURL EXAMPLES
+===============================================================================
+
+1. LOGIN ADMIN:
+curl -X POST http://localhost:5110/api/auth/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@election-system.com",
+    "password": "admin123"
+  }'
+
+2. LISTAR ELEIÇÕES:
+curl -X GET http://localhost:5110/api/election \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json"
+
+3. CRIAR ELEIÇÃO:
+curl -X POST http://localhost:5110/api/election \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Nova Eleição",
+    "description": "Descrição da nova eleição",
+    "startDate": "2024-12-01T09:00:00",
+    "endDate": "2024-12-01T18:00:00"
+  }'
+
+4. ELEIÇÕES ATIVAS (PÚBLICO):
+curl -X GET http://localhost:5110/api/election/active
+
+5. LISTAR CANDIDATOS:
+curl -X GET http://localhost:5110/api/candidate \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json"
+
+6. CRIAR CANDIDATO:
+curl -X POST http://localhost:5110/api/candidate \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Maria Santos",
+    "number": "10",
+    "description": "Candidata experiente",
+    "positionId": 1
+  }'
+
+7. UPLOAD FOTO TRADICIONAL:
+curl -X POST http://localhost:5110/api/candidate/1/upload-photo \
+  -H "Authorization: Bearer {token}" \
+  -F "photo=@/caminho/para/imagem.jpg"
+
+8. UPLOAD FOTO BLOB OTIMIZADA (NOVO!):
+curl -X POST http://localhost:5110/api/candidate/1/upload-photo-blob \
+  -H "Authorization: Bearer {token}" \
+  -F "photo=@/caminho/para/imagem.jpg"
+
+9. OBTER FOTO INTELIGENTE (PÚBLICO):
+curl -X GET http://localhost:5110/api/candidate/1/photo
+
+10. BUSCAR CANDIDATOS POR CARGO (PÚBLICO):
+curl -X GET http://localhost:5110/api/candidate/position/1
+
+11. LISTAR CARGOS:
+curl -X GET http://localhost:5110/api/position \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json"
+
+12. CRIAR CARGO:
+curl -X POST http://localhost:5110/api/position \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Prefeito",
+    "description": "Cargo de Prefeito Municipal",
+    "maxCandidates": 10
+  }'
+
+13. LISTAR ELEITORES:
+curl -X GET http://localhost:5110/api/voter \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json"
+
+14. CRIAR ELEITOR:
+curl -X POST http://localhost:5110/api/voter \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "João Silva",
+    "email": "joao@example.com",
+    "cpf": "12345678901",
+    "password": "senha123"
+  }'
+
+15. LISTAR ADMINISTRADORES:
+curl -X GET http://localhost:5110/api/adminmanagement \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json"
+
+16. CRIAR ADMINISTRADOR:
+curl -X POST http://localhost:5110/api/adminmanagement \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "João Silva",
+    "email": "joao.silva@election-system.com",
+    "password": "senha123segura",
+    "role": "admin",
+    "permissions": "{\"elections\": [\"read\", \"update\"]}",
+    "isActive": true,
+    "isSuper": false,
+  }'
+
+17. ATUALIZAR ADMINISTRADOR:
+curl -X PUT http://localhost:5110/api/adminmanagement/2 \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "João Silva Santos",
+  }'
+
+18. DESATIVAR ADMINISTRADOR:
+curl -X DELETE http://localhost:5110/api/adminmanagement/2 \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/json"
+
+19. REATIVAR ADMINISTRADOR:
+curl -X POST http://localhost:5110/api/adminmanagement/2/reactivate \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/json"
+
+20. GERAR LACRE DO SISTEMA:
+curl -X POST http://localhost:5110/api/SystemSeal/generate/1 \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/json"
+
+21. OBTER ÚLTIMO LACRE DO SISTEMA:
+curl -X GET http://localhost:5110/api/SystemSeal/latest/1 \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/json"
+
+22. VERIFICAR LACRE DO SISTEMA:
+curl -X POST http://localhost:5110/api/SystemSeal/verify/1 \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "providedSealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6..."
+  }'
+
+23. OBTER DADOS PARA PORTAL DE VOTAÇÃO (PÚBLICO):
+curl -X GET http://localhost:5110/api/voting-portal/elections/1/candidates
+
+24. VALIDAR ELEIÇÃO PARA VOTAÇÃO (PÚBLICO):
+curl -X GET http://localhost:5110/api/voting-portal/elections/1/validate
+
+25. OBTER CANDIDATOS POR POSIÇÃO (PÚBLICO):
+curl -X GET http://localhost:5110/api/voting-portal/positions/1/candidates
+
+===============================================================================
+                              HEALTH CHECK
+===============================================================================
+
+GET /health
+Resposta:
+{
+    "status": "Healthy",
+    "timestamp": "2024-01-01T10:00:00Z"
+}
+
+===============================================================================
+                                  SWAGGER UI
+===============================================================================
+
+Acesse http://localhost:5110/swagger para documentação interativa completa
+- Interface visual para testar todos os endpoints
+- Esquemas de dados detalhados
+- Exemplos de requisições e respostas
+- Autenticação JWT integrada
+
+===============================================================================
+                            SISTEMA DE VOTAÇÃO SEGURO - /api/voting
+===============================================================================
+
+TODOS OS ENDPOINTS DE VOTAÇÃO USAM CRIPTOGRAFIA AES-256 PARA PROTEGER OS VOTOS
+OS DADOS DO CANDIDATO SÃO CRIPTOGRAFADOS E SÓ PODEM SER DESCRIPTOGRAFADOS PELO SISTEMA
+
+1. LOGIN DO ELEITOR PARA VOTAÇÃO
+   Método: POST
+   Endpoint: /api/voting/login
+   Autenticação: Não requerida
+   
+   BODY (JSON):
+   {
+       "cpf": "string",        // Obrigatório, 11 dígitos
+       "password": "string",   // Obrigatório
+       "electionId": integer   // Obrigatório, ID da eleição
+   }
+   
+   EXEMPLO:
+   {
+       "cpf": "12345678901",
+       "password": "voter123",
+       "electionId": 1
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Login realizado com sucesso",
+       "data": {
+           "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+           "voterId": 1,
+           "voterName": "João Silva",
+           "electionId": 1,
+           "electionTitle": "Eleição Municipal 2024"
+       }
+   }
+
+2. OBTER STATUS DA ELEIÇÃO PARA VOTAÇÃO
+   Método: GET
+   Endpoint: /api/voting/election/{electionId}/status
+   Autenticação: Voter (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/voting/election/1/status
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "electionId": 1,
+           "title": "Eleição Municipal 2024",
+           "status": "active",
+           "startDate": "2024-12-01T09:00:00",
+           "endDate": "2024-12-01T18:00:00",
+           "isSealed": true,
+           "sealedAt": "2024-11-30T23:59:59",
+           "canVote": true,
+           "message": "Você pode votar nesta eleição",
+           "positions": [
+               {
+                   "positionId": 1,
+                   "name": "Prefeito",
+                   "description": "Candidatos a Prefeito",
+                   "maxCandidates": 1,
+                   "candidates": [
+                       {
+                           "candidateId": 1,
+                           "name": "Maria Silva",
+                           "number": "10",
+                           "party": "Partido A",
+                           "photoUrl": "/uploads/maria.jpg",
+                           "biography": "Candidata experiente..."
+                       }
+                   ]
+               }
+           ]
+       }
+   }
+
+3. REGISTRAR VOTO SEGURO (CRIPTOGRAFADO)
+   Método: POST
+   Endpoint: /api/voting/cast-vote
+   Autenticação: Voter (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "electionId": integer,      // Obrigatório
+       "positionId": integer,      // Obrigatório
+       "candidateId": integer,     // Opcional (null para voto em branco)
+       "isBlankVote": boolean,     // Padrão: false
+       "isNullVote": boolean,      // Padrão: false
+       "justification": "string"   // Opcional
+   }
+   
+   EXEMPLO:
+   {
+       "electionId": 1,
+       "positionId": 1,
+       "candidateId": 1,
+       "isBlankVote": false,
+       "isNullVote": false,
+       "justification": null
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Voto registrado com sucesso",
+       "data": {
+           "receiptToken": "ABC123DEF456GHI789",
+           "voteHash": "a1b2c3d4e5f6...",
+           "votedAt": "2024-12-01T10:30:00",
+           "electionId": 1,
+           "electionTitle": "Eleição Municipal 2024",
+           "voterName": "João Silva",
+           "voterCpf": "123.***.**01",
+           "voteDetails": [
+               {
+                   "positionName": "Prefeito",
+                   "candidateName": "Maria Silva",
+                   "candidateNumber": "10",
+                   "isBlankVote": false,
+                   "isNullVote": false
+               }
+           ]
+       }
+   }
+
+4. CONSULTAR RECIBO DE VOTAÇÃO
+   Método: GET
+   Endpoint: /api/voting/receipt/{receiptToken}
+   Autenticação: Não requerida
+   
+   EXEMPLO:
+   GET /api/voting/receipt/ABC123DEF456GHI789
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "receiptToken": "ABC123DEF456GHI789",
+           "voteHash": "a1b2c3d4e5f6...",
+           "votedAt": "2024-12-01T10:30:00",
+           "electionId": 1,
+           "electionTitle": "Eleição Municipal 2024",
+           "voterName": "João Silva",
+           "voterCpf": "123.***.**01",
+           "voteDetails": [...]
+       }
+   }
+
+5. VERIFICAR SE JÁ VOTOU
+   Método: GET
+   Endpoint: /api/voting/has-voted/{electionId}
+   Autenticação: Voter (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/voting/has-voted/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": true
+   }
+
+6. LACRAR ELEIÇÃO (Admin Only)
+   Método: POST
+   Endpoint: /api/voting/seal
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "electionId": integer,      // Obrigatório
+       "adminPassword": "string"   // Opcional, verificação adicional
+   }
+   
+   EXEMPLO:
+   {
+       "electionId": 1,
+       "adminPassword": "admin123"
+   }
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Eleição lacrada com sucesso",
+       "data": {
+           "success": true,
+           "message": "Eleição lacrada com sucesso",
+           "sealHash": "ABC123DEF456...",
+           "sealedAt": "2024-11-30T23:59:59",
+           "systemData": "{\"electionId\":1,\"title\":\"Eleição Municipal 2024\"...}"
+       }
+   }
+
+7. GERAR RELATÓRIO DE ZERESIMA (Admin Only)
+   Método: POST
+   Endpoint: /api/voting/zero-report/{electionId}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   POST /api/voting/zero-report/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "electionId": 1,
+           "electionTitle": "Eleição Municipal 2024",
+           "generatedAt": "2024-11-30T23:50:00",
+           "generatedBy": "Admin",
+           "reportHash": "DEF456GHI789...",
+           "totalRegisteredVoters": 1000,
+           "totalCandidates": 4,
+           "totalPositions": 2,
+           "totalVotes": 0,
+           "positions": [
+               {
+                   "positionName": "Prefeito",
+                   "totalCandidates": 2,
+                   "totalVotes": 0,
+                   "candidates": [
+                       {
+                           "candidateName": "Maria Silva",
+                           "candidateNumber": "10",
+                           "voteCount": 0
+                       }
+                   ]
+               }
+           ]
+       }
+   }
+
+8. VALIDAR INTEGRIDADE DA ELEIÇÃO (Admin Only)
+   Método: GET
+   Endpoint: /api/voting/integrity-report/{electionId}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/voting/integrity-report/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "electionId": 1,
+           "electionTitle": "Eleição Municipal 2024",
+           "originalSealHash": "ABC123DEF456...",
+           "currentSystemHash": "ABC123DEF456...",
+           "integrityValid": true,
+           "reportGeneratedAt": "2024-12-01T20:00:00",
+           "message": "Integridade da eleição confirmada",
+           "validationDetails": [
+               "Lacre original: ABC123DEF456...",
+               "Hash atual: ABC123DEF456...",
+               "Data do lacre: 2024-11-30 23:59:59",
+               "Status: VÁLIDO"
+           ]
+       }
+   }
+
+===============================================================================
+                            SISTEMA DE EMAIL - /api/email
+===============================================================================
+
+SISTEMA PARA ENVIO DE EMAILS INDIVIDUAIS E EM MASSA PARA ELEITORES
+CONFIGURAÇÃO SMTP NECESSÁRIA NO APPSETTINGS.JSON
+
+1. ENVIAR EMAIL INDIVIDUAL (Admin Only)
+   Método: POST
+   Endpoint: /api/email/send
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "toEmail": "string",        // Obrigatório, formato email
+       "toName": "string",         // Opcional
+       "subject": "string",        // Obrigatório, máx 200 caracteres
+       "body": "string",           // Obrigatório
+       "isHtml": boolean,          // Padrão: true
+       "attachments": ["string"]   // Opcional, array de caminhos
+   }
+   
+   EXEMPLO:
+   {
+       "toEmail": "eleitor@example.com",
+       "toName": "João Silva",
+       "subject": "Lembrete de Votação",
+       "body": "<h1>Não esqueça de votar!</h1><p>A eleição acontece amanhã.</p>",
+       "isHtml": true,
+       "attachments": []
+   }
+
+2. ENVIAR EMAIL EM MASSA (Admin Only)
+   Método: POST
+   Endpoint: /api/email/send-bulk
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "subject": "string",        // Obrigatório, máx 200 caracteres
+       "body": "string",           // Obrigatório
+       "isHtml": boolean,          // Padrão: true
+       "target": {                 // Obrigatório
+           "sendToAllActiveVoters": boolean,     // Padrão: true
+           "sendToAllVerifiedVoters": boolean,   // Padrão: false
+           "specificVoterIds": [integer],        // Opcional
+           "specificEmails": ["string"],         // Opcional
+           "votersRegisteredAfter": "datetime",  // Opcional
+           "votersRegisteredBefore": "datetime"  // Opcional
+       },
+       "attachments": ["string"]   // Opcional
+   }
+   
+   EXEMPLO:
+   {
+       "subject": "Comunicado Geral da Eleição",
+       "body": "Prezado(a) {NAME}, a eleição será realizada amanhã.",
+       "isHtml": true,
+       "target": {
+           "sendToAllActiveVoters": true,
+           "sendToAllVerifiedVoters": false,
+           "specificVoterIds": [],
+           "specificEmails": []
+       },
+       "attachments": []
+   }
+
+3. TESTAR CONFIGURAÇÃO DE EMAIL (Admin Only)
+   Método: POST
+   Endpoint: /api/email/test
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "toEmail": "string",    // Obrigatório
+       "toName": "string"      // Opcional
+   }
+   
+   EXEMPLO:
+   {
+       "toEmail": "admin@example.com",
+       "toName": "Administrador"
+   }
+
+===============================================================================
+                        RELATÓRIOS DE AUDITORIA - /api/report
+===============================================================================
+
+SISTEMA COMPLETO DE AUDITORIA E RELATÓRIOS PARA ADMINISTRADORES
+TODOS OS ENDPOINTS REQUEREM AUTENTICAÇÃO DE ADMIN
+
+1. OBTER LOGS DE AUDITORIA (Admin Only)
+   Método: GET
+   Endpoint: /api/report/audit-logs
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - page: Número da página (padrão: 1)
+   - limit: Itens por página (padrão: 50)
+   - startDate: Data inicial (formato: YYYY-MM-DD)
+   - endDate: Data final (formato: YYYY-MM-DD)
+   - userType: Filtro por tipo de usuário (admin, voter, system)
+   - action: Filtro por ação
+   - entityType: Filtro por tipo de entidade
+   - userId: Filtro por ID do usuário
+   - ipAddress: Filtro por endereço IP
+   
+   EXEMPLO:
+   GET /api/report/audit-logs?page=1&limit=20&userType=voter&action=cast_vote
+
+2. ESTATÍSTICAS DE AUDITORIA (Admin Only)
+   Método: GET
+   Endpoint: /api/report/statistics
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - startDate: Data inicial
+   - endDate: Data final
+   
+   EXEMPLO:
+   GET /api/report/statistics?startDate=2024-12-01&endDate=2024-12-31
+
+3. RELATÓRIO DE SEGURANÇA (Admin Only)
+   Método: GET
+   Endpoint: /api/report/security-report
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Obrigatórios):
+   - startDate: Data inicial
+   - endDate: Data final
+   
+   EXEMPLO:
+   GET /api/report/security-report?startDate=2024-12-01&endDate=2024-12-31
+
+4. ATIVIDADE DO USUÁRIO (Admin Only)
+   Método: GET
+   Endpoint: /api/report/user-activity/{userId}
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - startDate: Data inicial
+   - endDate: Data final
+   
+   EXEMPLO:
+   GET /api/report/user-activity/123?startDate=2024-12-01
+
+5. HISTÓRICO DE ENTIDADE (Admin Only)
+   Método: GET
+   Endpoint: /api/report/entity-history/{entityType}/{entityId}
+   Autenticação: Admin (Bearer Token)
+   
+   EXEMPLO:
+   GET /api/report/entity-history/election/1
+
+6. DETECTAR ATIVIDADE SUSPEITA (Admin Only)
+   Método: GET
+   Endpoint: /api/report/suspicious-activity
+   Autenticação: Admin (Bearer Token)
+   
+   QUERY PARAMETERS (Opcionais):
+   - startDate: Data inicial
+   - endDate: Data final
+   
+   EXEMPLO:
+   GET /api/report/suspicious-activity?startDate=2024-12-01
+
+7. EXPORTAR LOGS (Admin Only)
+   Método: POST
+   Endpoint: /api/report/export
+   Autenticação: Admin (Bearer Token)
+   
+   BODY (JSON):
+   {
+       "format": "string",         // Obrigatório: "csv" ou "json"
+       "startDate": "datetime",    // Opcional
+       "endDate": "datetime",      // Opcional
+       "userType": "string",       // Opcional
+       "action": "string",         // Opcional
+       "entityType": "string",     // Opcional
+       "userId": integer,          // Opcional
+       "includeDetails": boolean   // Padrão: false
+   }
+   
+   EXEMPLO:
+   {
+       "format": "csv",
+       "startDate": "2024-12-01T00:00:00",
+       "endDate": "2024-12-31T23:59:59",
+       "userType": "voter",
+       "includeDetails": true
+   }
+
+8. DASHBOARD DE AUDITORIA (Admin Only)
+   Método: GET
+   Endpoint: /api/report/dashboard
+   Autenticação: Admin (Bearer Token)
+   
+   RESPOSTA: Estatísticas dos últimos 30 dias + atividades suspeitas
+
+===============================================================================
+                        SISTEMA DE LACRE - /api/SystemSeal
+===============================================================================
+
+ENDPOINTS PARA GERENCIAMENTO DE LACRES DO SISTEMA
+TODOS OS ENDPOINTS REQUEREM AUTENTICAÇÃO JWT DE ADMINISTRADOR
+
+1. GERAR LACRE DO SISTEMA (Admin Only)
+   Método: POST
+   Endpoint: /api/SystemSeal/generate/{electionId}
+   Autenticação: Admin (Bearer Token)
+   
+   DESCRIÇÃO:
+   Gera um novo lacre criptográfico para uma eleição específica. O lacre captura
+   o estado atual do sistema incluindo dados da eleição, candidatos, eleitores
+   registrados e totais de votos. É usado para garantir integridade do sistema.
+   
+   EXEMPLO:
+   POST /api/SystemSeal/generate/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "System seal generated successfully.",
+       "data": {
+           "id": 1,
+           "sealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "sealType": "election_seal",
+           "electionId": 1,
+           "sealedAt": "2024-08-01T10:00:00Z",
+           "sealedBy": 1,
+           "systemData": "{\"ElectionId\":1,\"ElectionTitle\":\"Eleição de Exemplo 2024\",\"TotalRegisteredVoters\":1000,\"TotalCandidates\":5,\"TotalVotesCast\":0,\"Timestamp\":\"2024-08-01T10:00:00Z\"}",
+           "ipAddress": "192.168.1.1",
+           "userAgent": "Mozilla/5.0...",
+           "isValid": true,
+           "createdAt": "2024-08-01T10:00:00Z",
+           "updatedAt": "2024-08-01T10:00:00Z"
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Eleição não encontrada
+   - 401 Unauthorized: Token inválido
+   - 500 Internal Server Error: Erro na geração do lacre
+
+2. OBTER ÚLTIMO LACRE DO SISTEMA (Admin Only)
+   Método: GET
+   Endpoint: /api/SystemSeal/latest/{electionId}
+   Autenticação: Admin (Bearer Token)
+   
+   DESCRIÇÃO:
+   Retorna o lacre mais recente gerado para uma eleição específica.
+   Usado para verificar o estado atual do lacre da eleição.
+   
+   EXEMPLO:
+   GET /api/SystemSeal/latest/1
+   
+   RESPOSTA (200 OK):
+   {
+       "success": true,
+       "message": "Success",
+       "data": {
+           "id": 1,
+           "sealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "sealType": "election_seal",
+           "electionId": 1,
+           "sealedAt": "2024-08-01T10:00:00Z",
+           "sealedBy": 1,
+           "systemData": "{\"ElectionId\":1,\"ElectionTitle\":\"Eleição de Exemplo 2024\",\"TotalRegisteredVoters\":1000,\"TotalCandidates\":5,\"TotalVotesCast\":0,\"Timestamp\":\"2024-08-01T10:00:00Z\"}",
+           "ipAddress": "192.168.1.1",
+           "userAgent": "Mozilla/5.0...",
+           "isValid": true,
+           "createdAt": "2024-08-01T10:00:00Z",
+           "updatedAt": "2024-08-01T10:00:00Z"
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 404 Not Found: Nenhum lacre encontrado para esta eleição
+   - 401 Unauthorized: Token inválido
+   - 500 Internal Server Error: Erro ao recuperar lacre
+
+3. VERIFICAR LACRE DO SISTEMA (Admin Only)
+   Método: POST
+   Endpoint: /api/SystemSeal/verify/{electionId}
+   Autenticação: Admin (Bearer Token)
+   
+   DESCRIÇÃO:
+   Verifica a integridade de um lacre fornecido comparando-o com o lacre
+   armazenado e recalculando o hash com base no estado atual do sistema.
+   Fundamental para auditoria e verificação de integridade.
+   
+   BODY (JSON):
+   {
+       "providedSealHash": "string" // Obrigatório, hash SHA-256 a ser verificado
+   }
+   
+   EXEMPLO:
+   POST /api/SystemSeal/verify/1
+   {
+       "providedSealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6..."
+   }
+   
+   RESPOSTA (200 OK) - LACRE VÁLIDO:
+   {
+       "success": true,
+       "message": "System seal is valid and matches current system state.",
+       "data": {
+           "electionId": 1,
+           "providedSealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "storedSealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "currentCalculatedHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "sealedAt": "2024-08-01T10:00:00Z",
+           "systemData": {
+               "ElectionId": 1,
+               "ElectionTitle": "Eleição de Exemplo 2024",
+               "TotalRegisteredVoters": 1000,
+               "TotalCandidates": 5,
+               "TotalVotesCast": 0,
+               "Timestamp": "2024-08-01T10:00:00Z"
+           },
+           "isValid": true,
+           "message": "System seal is valid and matches current system state."
+       }
+   }
+   
+   RESPOSTA (200 OK) - LACRE INVÁLIDO:
+   {
+       "success": true,
+       "message": "System seal verification completed.",
+       "data": {
+           "electionId": 1,
+           "providedSealHash": "invalid_hash_123...",
+           "storedSealHash": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6...",
+           "currentCalculatedHash": "different_hash_456...",
+           "sealedAt": "2024-08-01T10:00:00Z",
+           "systemData": null,
+           "isValid": false,
+           "message": "System seal is invalid or system state has been modified."
+       }
+   }
+   
+   POSSÍVEIS ERROS:
+   - 400 Bad Request: Hash não fornecido ou inválido
+   - 404 Not Found: Eleição não encontrada
+   - 401 Unauthorized: Token inválido
+   - 500 Internal Server Error: Erro na verificação
+
+===============================================================================
+                        CONFIGURAÇÃO DE CRIPTOGRAFIA
+===============================================================================
+
+VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
+- VOTE_MASTER_KEY: Chave mestra para criptografia dos votos
+- JUSTIFICATION_KEY: Chave para criptografia das justificativas
+
+APPSETTINGS.JSON:
+{
+  "VoteCryptography": {
+    "MasterKey": "sua-chave-mestra-super-secreta",
+    "JustificationKey": "sua-chave-justificativa-secreta"
+  }
+}
+
+CONFIGURAÇÃO SMTP (APPSETTINGS.JSON):
+{
+  "EmailSettings": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "EnableSsl": true,
+    "Username": "seu-email@gmail.com",
+    "Password": "sua-senha-app",
+    "FromEmail": "noreply@election-system.com",
+    "FromName": "Sistema de Eleições"
+  }
+}
+
+===============================================================================
+                                SEGURANÇA DOS VOTOS
+===============================================================================
+
+O SISTEMA DE VOTAÇÃO IMPLEMENTA MÚLTIPLAS CAMADAS DE SEGURANÇA:
+
+1. CRIPTOGRAFIA AES-256:
+   - Dados do candidato completamente criptografados
+   - Chave única derivada do lacre da eleição
+   - Justificativas também criptografadas
+
+2. HASHES DE INTEGRIDADE:
+   - SHA-256 para validação de integridade
+   - HMAC-SHA256 para assinatura digital
+   - Hash de criação temporal
+
+3. AUDITORIA COMPLETA:
+   - Device fingerprinting
+   - Logs de IP e User Agent
+   - Trail completo para verificação
+
+4. PROTEÇÃO DE DADOS:
+   - Repository apenas com INSERT (sem UPDATE/DELETE)
+   - Votos não podem ser alterados após criação
+   - Descriptografia apenas para contabilização
+
+===============================================================================
+                                FLUXO DE VOTAÇÃO
+===============================================================================
+
+1. ADMINISTRADOR:
+   a) Cria eleição via /api/election
+   b) Configura candidatos e cargos
+   c) Lacra eleição via /api/voting/seal
+   d) Gera relatório zeresima via /api/voting/zero-report
+
+2. ELEITOR:
+   a) Login via /api/voting/login com CPF/senha
+   b) Consulta status via /api/voting/election/{id}/status
+   c) Registra voto via /api/voting/cast-vote
+   d) Recebe recibo criptografado com token único
+
+3. CONTABILIZAÇÃO:
+   a) Sistema descriptografa votos automaticamente
+   b) Gera resultados com hash de integridade
+   c) Valida integridade via /api/voting/integrity-report
+
+===============================================================================
+                                    NOTAS
+===============================================================================
+
+1. Todos os timestamps seguem o formato ISO 8601 (YYYY-MM-DDTHH:mm:ss)
+2. Timezone padrão: America/Sao_Paulo
+3. Encoding: UTF-8
+4. Content-Type padrão: application/json
+5. Todas as senhas são criptografadas com BCrypt
+6. Votos são criptografados com AES-256
+7. Logs estruturados com Serilog
+8. Sistema 100% auditável
+9. Eleições devem ser lacradas antes de receber votos
+10. Relatório zeresima só pode ser gerado 10min antes da eleição
+
+===============================================================================
+                            ARQUITETURA TÉCNICA
+===============================================================================
+
+ESTRUTURA DO PROJETO:
+- Controllers/       → Camada de Apresentação (API Endpoints)
+- Services/          → Camada de Lógica de Negócio
+- Data/              → Camada de Acesso a Dados (Repository Pattern)
+- Models/            → Entidades de Domínio (Database Models)
+- DTOs/              → Objetos de Transferência de Dados
+- Middleware/        → Pipeline de Processamento de Requisições
+- Migrations/        → Scripts de Migração do Banco de Dados
+
+BIBLIOTECAS NUGET PRINCIPAIS:
+- Microsoft.AspNetCore.Authentication.JwtBearer: Autenticação JWT
+- Pomelo.EntityFrameworkCore.MySql: ORM para MySQL
+- BCrypt.Net-Next: Criptografia de senhas
+- Serilog.AspNetCore: Sistema de logging avançado
+- FluentValidation: Validação de dados
+- AutoMapper: Mapeamento de objetos
+- SixLabors.ImageSharp: Processamento de imagens (NOVO!)
+- Swashbuckle.AspNetCore: Documentação Swagger
+- DotNetEnv: Gerenciamento de variáveis de ambiente
+
+PADRÕES DE DESIGN UTILIZADOS:
+- Repository Pattern: Abstração do acesso a dados
+- Dependency Injection: Inversão de controle
+- Factory Pattern: Criação de objetos padronizados (ApiResponse)
+- Template Method: Classe base para entidades (BaseEntity)
+- Strategy Pattern: Middleware pipeline
+- Hybrid Storage Pattern: Sistema dual arquivo/BLOB (NOVO!)
+
+DIFERENÇAS MODELS vs DTOs:
+MODELS (Classes de Domínio):
+- Representam entidades do banco de dados
+- Contêm dados internos e sensíveis
+- Incluem validações do Entity Framework
+- Herdam de BaseEntity (Id, CreatedAt, UpdatedAt)
+- Exemplo: Candidate.cs com dados BLOB para fotos
+- Propriedades calculadas (HasPhoto, HasPhotoFile, HasPhotoBlob)
+
+DTOs (Data Transfer Objects):
+- Objetos para transferência na API
+- Contêm apenas dados necessários para operação
+- NÃO expõem dados sensíveis (ex: PhotoData não é exposto)
+- Validações específicas para entrada/saída
+- Exemplo: CandidateResponseDto com informações de armazenamento
+
+NOVOS DTOs ADICIONADOS:
+- SystemSealVerificationDto: Resposta da verificação de lacre
+- SystemSealVerificationRequestDto: Requisição para verificação de lacre
+- CreateAdminDto, UpdateAdminDto, AdminResponseDto: Gestão de administradores
+- ChangePasswordDto, AdminStatisticsDto: Funcionalidades administrativas
+- VotingPortalCandidateDto: Candidatos otimizados para portal de votação
+- VotingPortalPositionDto: Posições com candidatos organizados
+- VotingPortalElectionDto: Eleição completa para portal de votação
+- ElectionValidationDto: Status detalhado de validação de eleição
+
+FLUXO DE DADOS:
+Cliente → Controller → Service → Repository → Database
+1. Controller recebe requisição e valida DTOs
+2. Service aplica regras de negócio
+3. Repository abstrai acesso ao banco
+4. Database persiste os dados
+
+SISTEMA HÍBRIDO DE FOTOS (NOVO!):
+- Armazenamento duplo: Arquivos físicos + BLOB no banco
+- Otimização automática com ImageSharp
+- Redimensionamento inteligente (máx 800x600)
+- Conversão para JPEG
+- Compressão inteligente
+- Armazenamento dual (arquivo + BLOB)
+- Recuperação inteligente de fotos
+
+SEGURANÇA IMPLEMENTADA:
+- Senhas criptografadas com BCrypt
+- Tokens JWT com expiração diferenciada (Admin: 1h, Voter: 5min)
+- Votos criptografados com AES-256
+- Auditoria completa de todas as operações
+- Middleware de tratamento de exceções
+- Validação de tipos de arquivo para uploads
+
+===============================================================================
+                        CONFIGURAÇÃO DOCKER E DEPLOY
+===============================================================================
+
+DOCKER COMPOSE ATUALIZADO:
+- MySQL 8.0 com configurações otimizadas
+- API .NET 8.0 com sistema híbrido de fotos
+- Volumes persistentes para dados e uploads
+- Rede isolada para comunicação interna
+- Health checks para garantir disponibilidade
+- Variables de ambiente configuráveis
+
+CREDENCIAIS DOCKER:
+Host MySQL: localhost:3306
+Database: election_system
+Username: root
+Password: ElectionSystem2024!
+
+COMANDOS DOCKER:
+# Build e deploy completo
+./docker-deploy.sh
+
+# Start/stop manual
+docker-compose up -d
+docker-compose down
+
+# Logs
+docker-compose logs -f api
+docker-compose logs -f db
+
+VOLUMES CRIADOS:
+- mysql_data: Dados persistentes do MySQL
+- mysql_config: Configurações do MySQL  
+- photo_uploads: Uploads de fotos físicas
+- app_logs: Logs da aplicação
+
+PORTAS EXPOSTAS:
+- 5110: API HTTP
+- 3306: MySQL Database
+
+FUNCIONALIDADES DO SISTEMA HÍBRIDO:
+- Upload tradicional de arquivos (até 5MB)
+- Upload otimizado BLOB (até 10MB) 
+- Redimensionamento automático
+- Conversão para JPEG
+- Compressão inteligente
+- Armazenamento dual (arquivo + BLOB)
+- Recuperação inteligente de fotos
+
+VARIÁVEIS DE AMBIENTE PRINCIPAIS:
+DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD
+JWT_SECRET_KEY, JWT_ISSUER, JWT_AUDIENCE, JWT_EXPIRE_MINUTES
+VOTE_MASTER_KEY, VOTE_JUSTIFICATION_KEY
+MAX_PHOTO_SIZE_MB, PHOTO_QUALITY, MAX_PHOTO_WIDTH, MAX_PHOTO_HEIGHT
+
+===============================================================================
+                              CREDENCIAIS DE ACESSO
+===============================================================================
+
+USUÁRIO MASTER (Desenvolvedor do Sistema):
+Email: lohran@funcorsan.com.br
+Nome: Lohran Fagundes
+Senha: admin123 (ALTERE EM PRODUÇÃO!)
+Características:
+- Acesso total ao sistema (role: master)
+- Autenticação JWT direta (sem 2FA)
+- Pode criar, editar e gerenciar outros administradores
+- Possui todas as permissões do sistema
+- Protegido contra desativação/modificação
+
+USUÁRIO ADMINISTRADOR PADRÃO:
+Email: admin@election-system.com
+Nome: Administrator
+Senha: admin123
+Características:
+- Acesso administrativo normal (role: admin)
+- Autenticação JWT direta (sem 2FA)
+- Pode gerenciar eleições, candidatos e relatórios
+- Não pode criar outros administradores (apenas master pode)
+
+IMPORTANTE: 
+- Todos os administradores usam autenticação JWT direta
+- Apenas o usuário master pode criar novos administradores
+- O usuário master não pode ser desativado ou modificado via API
+
+===============================================================================
+                                  SUPPORT
+===============================================================================
+
+Para dúvidas, consulte:
+- Swagger UI: http://localhost:5110/swagger
+- Health Check: http://localhost:5110/health
+- API Info: http://localhost:5110/
+- Guia Técnico: GUIA-TECNICO-INICIANTES.md
+
+===============================================================================

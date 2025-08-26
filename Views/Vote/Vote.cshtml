@@ -1,0 +1,251 @@
+@model List<VoteHomWebApp.Models.Candidate>
+@{
+    ViewData["Title"] = $"Votação - {ViewBag.PositionName}";
+    var positionName = ViewBag.PositionName as string ?? "Cargo";
+    var electionName = ViewBag.ElectionName as string ?? "Eleição";
+    var currentStep = ViewBag.CurrentStep ?? 1;
+    var totalSteps = ViewBag.TotalSteps ?? 1;
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="text-center mb-4">
+            <h2 class="text-purple">@electionName</h2>
+            <h3 class="text-info">Votação para: <strong>@positionName</strong></h3>
+            <p class="text-success">Para votar, clique no candidato desejado</p>
+            <span class="step-indicator">Passo @currentStep de @totalSteps</span>
+        </div>
+
+        <form id="voteForm" asp-controller="Vote" asp-action="SubmitVote" method="post">
+            <input type="hidden" name="positionId" value="@ViewBag.PositionId" />
+            <input type="hidden" name="candidateId" id="selectedCandidateId" />
+            <input type="hidden" name="voteType" id="selectedVoteType" value="candidate" />
+
+            <div class="row">
+                @foreach (var candidate in Model)
+                {
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="vote-card candidate-card" onclick="selectCandidate(@candidate.Id, 'candidate')" 
+                             data-candidate-id="@candidate.Id" data-candidate-name="@candidate.Name">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <div class="candidate-photo mb-3">
+                                        @if (!string.IsNullOrEmpty(candidate.PhotoBase64))
+                                        {
+                                            <img src="@candidate.PhotoBase64" alt="@candidate.Name" 
+                                                 class="img-fluid rounded-circle candidate-image" 
+                                                 style="width: 100px; height: 100px; object-fit: cover;" />
+                                        }
+                                        else if (!string.IsNullOrEmpty(candidate.PhotoUrl))
+                                        {
+                                            <img src="@candidate.PhotoUrl" alt="@candidate.Name" 
+                                                 class="img-fluid rounded-circle candidate-image" 
+                                                 style="width: 100px; height: 100px; object-fit: cover;" 
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                                            <div class="candidate-avatar" style="display: none;">
+                                                <i class="fas fa-user fa-3x text-muted"></i>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="candidate-avatar">
+                                                <i class="fas fa-user fa-3x text-muted"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                    <h5 class="card-title">@candidate.Name</h5>
+                                    @if (!string.IsNullOrEmpty(candidate.Number))
+                                    {
+                                        <p class="candidate-number"><strong>Número: @candidate.Number</strong></p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(candidate.Party))
+                                    {
+                                        <p class="text-muted small">@candidate.Party</p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(candidate.Description))
+                                    {
+                                        <p class="text-muted small">@candidate.Description</p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Botões de voto branco e nulo - layout estreito -->
+            <div class="row justify-content-center mb-3">
+                <div class="col-auto">
+                    <button type="button" class="btn btn-outline-secondary vote-special-btn me-2" 
+                            onclick="selectCandidate(null, 'blank')" id="blankBtn">
+                        <i class="fas fa-square me-2"></i>VOTO EM BRANCO
+                    </button>
+                    <button type="button" class="btn btn-outline-danger vote-special-btn" 
+                            onclick="selectCandidate(null, 'null')" id="nullBtn">
+                        <i class="fas fa-ban me-2"></i>VOTO NULO
+                    </button>
+                </div>
+            </div>
+
+            <!-- Botões principais -->
+            <div class="text-center mt-4">
+                <button type="button" id="voteBtn" class="btn btn-primary btn-lg" disabled onclick="showConfirmationModal()">
+                    <i class="fas fa-vote-yea me-2"></i>Votar
+                </button>
+                <a href="@Url.Action("SelectPosition")" class="btn btn-secondary btn-lg ms-3">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </a>
+            </div>
+        </form>
+
+        <div class="text-center mt-4">
+            <div class="vote-timer" id="timer">00:05:00</div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Voto -->
+<div class="modal fade" id="confirmVoteModal" tabindex="-1" aria-labelledby="confirmVoteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="confirmVoteModalLabel">
+                    <i class="fas fa-check-circle me-2"></i>Confirmar Voto
+                </h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="mb-3">
+                    <h6 class="text-muted">Cargo: <strong id="modalPositionName">@positionName</strong></h6>
+                </div>
+                <div class="alert alert-info" id="voteConfirmationMessage">
+                    <!-- Conteúdo será preenchido pelo JavaScript -->
+                </div>
+                <p class="text-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Atenção:</strong> Esta ação não pode ser desfeita.
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-success btn-lg me-3" onclick="confirmVote()">
+                    <i class="fas fa-check me-2"></i>Confirmar Voto
+                </button>
+                <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <style>
+        .vote-special-btn {
+            min-width: 180px;
+            padding: 8px 16px;
+        }
+        
+        .vote-card.selected {
+            border: 3px solid #0d6efd !important;
+            transform: scale(1.02);
+            box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
+        }
+        
+        .vote-special-btn.selected {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: white;
+        }
+        
+        .btn-outline-secondary.selected {
+            background-color: #6c757d;
+            border-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-outline-danger.selected {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+        }
+    </style>
+    
+    <script>
+        let selectedCandidateId = null;
+        let selectedVoteType = 'candidate';
+        let selectedCandidateName = '';
+        let timeLeft = 300; // 5 minutos
+
+        function selectCandidate(candidateId, voteType) {
+            // Remove seleção anterior
+            document.querySelectorAll('.vote-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelectorAll('.vote-special-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+
+            // Adiciona seleção atual
+            if (voteType === 'candidate') {
+                event.currentTarget.classList.add('selected');
+                selectedCandidateName = event.currentTarget.getAttribute('data-candidate-name');
+            } else if (voteType === 'blank') {
+                document.getElementById('blankBtn').classList.add('selected');
+                selectedCandidateName = 'Voto em Branco';
+            } else if (voteType === 'null') {
+                document.getElementById('nullBtn').classList.add('selected');
+                selectedCandidateName = 'Voto Nulo';
+            }
+
+            selectedCandidateId = candidateId;
+            selectedVoteType = voteType;
+
+            document.getElementById('selectedCandidateId').value = candidateId || '';
+            document.getElementById('selectedVoteType').value = voteType;
+            document.getElementById('voteBtn').disabled = false;
+        }
+        
+        function showConfirmationModal() {
+            let message = '';
+            if (selectedVoteType === 'candidate') {
+                message = `<strong>Candidato selecionado:</strong><br>${selectedCandidateName}`;
+            } else if (selectedVoteType === 'blank') {
+                message = `<strong>Você escolheu:</strong><br>Voto em Branco`;
+            } else if (selectedVoteType === 'null') {
+                message = `<strong>Você escolheu:</strong><br>Voto Nulo`;
+            }
+            
+            document.getElementById('voteConfirmationMessage').innerHTML = message;
+            
+            // Mostrar modal usando Bootstrap 5
+            const modal = new bootstrap.Modal(document.getElementById('confirmVoteModal'));
+            modal.show();
+        }
+        
+        function confirmVote() {
+            // Submeter o form
+            document.getElementById('voteForm').submit();
+        }
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft > 0) {
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                alert('Tempo esgotado! Você será redirecionado para o início.');
+                window.location.href = '@Url.Action("Index", "Vote")';
+            }
+        }
+
+        // Iniciar timer
+        updateTimer();
+    </script>
+}

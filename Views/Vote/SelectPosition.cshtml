@@ -1,0 +1,163 @@
+@model List<VoteHomWebApp.Services.Position>
+@{
+    ViewData["Title"] = "Selecionar Cargo para Votação";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="text-center mb-4">
+            <h2 class="text-purple">@(ViewBag.ElectionName ?? "Sistema de Votação Eletrônica")</h2>
+            @{
+                bool hasMultiplePositions = ViewBag.HasMultiplePositions ?? false;
+                string requiredMethod = ViewBag.RequiredVotingMethod as string ?? "cast-vote";
+                string apiMessage = ViewBag.ApiMessage as string ?? "";
+            }
+            
+            @if (hasMultiplePositions)
+            {
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <h4>Votação Múltipla Obrigatória (Detectada pela API)</h4>
+                    <p class="mb-1">Esta eleição possui <strong>@Model.Count cargos</strong>. Você deve votar em <strong>todos os cargos</strong> antes de gerar seu comprovante.</p>
+                    <p class="mb-1 text-primary"><strong>API informa:</strong> @apiMessage</p>
+                    <p class="mb-0 text-success"><strong>Método obrigatório:</strong> @requiredMethod</p>
+                </div>
+            }
+            else
+            {
+                <h3 class="text-info">Votação Individual</h3>
+                <p class="text-success">Clique no cargo desejado para visualizar os candidatos</p>
+                @if (!string.IsNullOrEmpty(apiMessage))
+                {
+                    <p class="text-muted small"><strong>API informa:</strong> @apiMessage</p>
+                }
+            }
+        </div>
+
+        <div class="row justify-content-center">
+            @foreach (var position in Model)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 position-card" onclick="selectPosition(@position.Id)">
+                        <div class="card-body text-center">
+                            <div class="position-icon mb-3">
+                                <i class="fas fa-vote-yea fa-4x text-primary"></i>
+                            </div>
+                            <h4 class="card-title">@position.Name</h4>
+                            @if (!string.IsNullOrEmpty(position.Description))
+                            {
+                                <p class="text-muted">@position.Description</p>
+                            }
+                            <div class="candidate-count mt-3">
+                                <span class="badge bg-info">@position.Candidates.Count candidatos</span>
+                            </div>
+                        </div>
+                        <div class="card-footer text-center">
+                            @if (!hasMultiplePositions)
+                            {
+                                <a href="@Url.Action("Vote", new { positionId = position.Id })" class="btn btn-primary">
+                                    Visualizar Candidatos
+                                </a>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-secondary" disabled>
+                                    <i class="fas fa-lock me-2"></i>Use Votação Múltipla (API)
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (hasMultiplePositions)
+        {
+            <div class="text-center mt-4 mb-4">
+                <a href="@Url.Action("StartMultipleVote")" class="btn btn-success btn-lg">
+                    <i class="fas fa-play-circle me-2"></i>Iniciar Votação Múltipla (API)
+                </a>
+            </div>
+            <div class="alert alert-warning text-center">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Atenção:</strong> A API detectou múltiplos cargos. A votação individual está desabilitada.
+            </div>
+        }
+        
+        <div class="text-center mt-4">
+            <a href="@Url.Action("Logout")" class="btn btn-outline-danger">
+                <i class="fas fa-sign-out-alt"></i> Sair do Sistema
+            </a>
+        </div>
+
+        <div class="text-center mt-4">
+            <div class="vote-timer" id="timer">00:10:00</div>
+            <p class="text-muted small">Tempo limite para completar a votação</p>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-bottom bg-warning text-center py-2">
+    <small><strong>Ambiente de Homologação</strong></small>
+</div>
+
+@section Scripts {
+    <script>
+        let timeLeft = 600; // 10 minutos
+
+        function selectPosition(positionId) {
+            window.location.href = '@Url.Action("Vote")' + '?positionId=' + positionId;
+        }
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (timeLeft > 0) {
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            } else {
+                alert('Tempo esgotado! Você será redirecionado para o início.');
+                window.location.href = '@Url.Action("Logout")';
+            }
+        }
+
+        // Iniciar timer
+        updateTimer();
+
+        // Estilo para cards de posição
+        document.querySelectorAll('.position-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-5px)';
+                this.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            });
+        });
+    </script>
+
+    <style>
+        .position-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #dee2e6;
+        }
+
+        .position-card:hover {
+            border-color: #007bff;
+        }
+
+        .position-icon {
+            color: #007bff;
+        }
+
+        .candidate-count .badge {
+            font-size: 0.9em;
+        }
+    </style>
+}
