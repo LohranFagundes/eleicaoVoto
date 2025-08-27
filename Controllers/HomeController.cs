@@ -24,9 +24,7 @@ namespace VoteHomWebApp.Controllers
 
                 if (electionInfo != null)
                 {
-                    DateTime now = DateTime.Now;
-
-                    if (now >= electionInfo.StartDate && now <= electionInfo.EndDate)
+                    if (electionInfo.IsVotingPeriod)
                     {
                         ViewBag.ElectionActive = true;
                         ViewBag.ElectionTitle = electionInfo.Name;

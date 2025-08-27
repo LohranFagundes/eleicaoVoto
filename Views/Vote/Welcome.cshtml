@@ -33,46 +33,33 @@
                 
                 @if (!string.IsNullOrEmpty(ViewBag.StatusMessage as string))
                 {
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        @ViewBag.StatusMessage
+                    var electionStatus = ViewBag.ElectionStatus as string ?? "info";
+                    var alertClass = electionStatus switch 
+                    {
+                        "not_started" => "alert-warning",
+                        "ended" => "alert-danger", 
+                        "active" => "alert-success",
+                        _ => "alert-info"
+                    };
+                    var iconClass = electionStatus switch 
+                    {
+                        "not_started" => "fas fa-clock",
+                        "ended" => "fas fa-times-circle", 
+                        "active" => "fas fa-check-circle",
+                        _ => "fas fa-info-circle"
+                    };
+                    
+                    <div class="alert @alertClass">
+                        <i class="@iconClass"></i>
+                        <div style="white-space: pre-line;">@ViewBag.StatusMessage</div>
                     </div>
                 }
                 
                 @{
-                    var now = DateTime.Now;
-                    var beforeStart = now < Model.StartDate;
-                    var afterEnd = now > Model.EndDate;
-                    var isActive = !beforeStart && !afterEnd;
+                    var isActive = Model.IsVotingPeriod;
                 }
                 
-                @if (beforeStart)
-                {
-                    <div class="alert alert-warning">
-                        <i class="fas fa-clock"></i>
-                        <h4>@Model.Name</h4>
-                        <p class="mb-2"><strong>A eleição ainda não iniciou</strong></p>
-                        <p class="mb-0">Período de votação:</p>
-                        <p class="fw-bold">
-                            <i class="fas fa-calendar-alt"></i> @Model.StartDate.ToString("dd/MM/yyyy") às @Model.StartDate.ToString("HH:mm") até @Model.EndDate.ToString("dd/MM/yyyy") às @Model.EndDate.ToString("HH:mm")
-                        </p>
-                        <small class="text-muted">Aguarde o horário de abertura para votar.</small>
-                    </div>
-                }
-                else if (afterEnd)
-                {
-                    <div class="alert alert-danger">
-                        <i class="fas fa-times-circle"></i>
-                        <h4>@Model.Name</h4>
-                        <p class="mb-2"><strong>A eleição já foi encerrada</strong></p>
-                        <p class="mb-0">Período de votação foi:</p>
-                        <p class="fw-bold">
-                            <i class="fas fa-calendar-times"></i> @Model.StartDate.ToString("dd/MM/yyyy") às @Model.StartDate.ToString("HH:mm") até @Model.EndDate.ToString("dd/MM/yyyy") às @Model.EndDate.ToString("HH:mm")
-                        </p>
-                        <small class="text-muted">O prazo para votar expirou.</small>
-                    </div>
-                }
-                else
+                @if (isActive)
                 {
                     <div class="alert alert-success">
                         <i class="fas fa-vote-yea"></i>
@@ -85,24 +72,31 @@
                         <small class="text-success">Clique em "Entrar para Votar" para acessar.</small>
                     </div>
                 }
+                else
+                {
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i>
+                        <h4>@Model.Name</h4>
+                        <p class="mb-2"><strong>A eleição já foi encerrada</strong></p>
+                        <p class="mb-0">Período de votação foi:</p>
+                        <p class="fw-bold">
+                            <i class="fas fa-calendar-times"></i> @Model.StartDate.ToString("dd/MM/yyyy") às @Model.StartDate.ToString("HH:mm") até @Model.EndDate.ToString("dd/MM/yyyy") às @Model.EndDate.ToString("HH:mm")
+                        </p>
+                        <small class="text-muted">O prazo para votar expirou.</small>
+                    </div>
+                }
 
                 <div class="mt-4">
-                    @if (beforeStart)
+                    @if (isActive)
                     {
-                        <p class="text-muted">
-                            A votação ainda não foi liberada. A página será atualizada automaticamente.
-                        </p>
-                    }
-                    else if (afterEnd)
-                    {
-                        <p class="text-muted">
-                            O período de votação já se encerrou. Não é mais possível votar nesta eleição.
+                        <p class="text-success fw-bold">
+                            <i class="fas fa-check-circle"></i> Eleição disponível para votação!
                         </p>
                     }
                     else
                     {
-                        <p class="text-success fw-bold">
-                            <i class="fas fa-check-circle"></i> Eleição disponível para votação!
+                        <p class="text-muted">
+                            O período de votação já se encerrou. Não é mais possível votar nesta eleição.
                         </p>
                     }
                 </div>
@@ -113,6 +107,14 @@
                         <a href="@Url.Action("Login", "Vote")" class="btn btn-success btn-lg me-2">
                             <i class="fas fa-sign-in-alt"></i> Entrar para Votar
                         </a>
+                    }
+                    else
+                    {
+                        <div class="alert alert-secondary mb-3">
+                            <i class="fas fa-lock"></i>
+                            <strong>Acesso ao login bloqueado</strong><br>
+                            O sistema de login será liberado apenas durante o período ativo da eleição.
+                        </div>
                     }
                     <button class="btn btn-outline-primary" onclick="location.reload()">
                         <i class="fas fa-sync-alt"></i> Atualizar Página

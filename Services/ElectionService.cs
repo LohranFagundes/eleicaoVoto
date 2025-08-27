@@ -29,6 +29,7 @@ namespace VoteHomWebApp.Services
         Task<bool> RequestPasswordResetAsync(string email);
         Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword, string confirmPassword);
         Task<bool> ResetPasswordAsync(string token, string newPassword);
+        Task<(string Status, string Message)> GetElectionStatusMessageAsync(int electionId);
     }
 
     public class ElectionService : IElectionService
@@ -72,8 +73,8 @@ namespace VoteHomWebApp.Services
                                 var validationContent = await validationResponse.Content.ReadAsStringAsync();
                                 var validationResult = JsonConvert.DeserializeObject<ApiResponse<ElectionValidation>>(validationContent);
 
-                                // Accept both valid elections and sealed elections (sealed elections should allow voting)
-                                if (validationResult?.Data?.IsValid == true || validationResult?.Data?.IsSealed == true)
+                                // Only accept valid elections, sealed elections are closed for voting
+                                if (validationResult?.Data?.IsValid == true && validationResult?.Data?.IsSealed != true)
                                 {
                                     Console.WriteLine($"Found votable election: {election.Id}, Status: {validationResult.Data.Status}, IsValid: {validationResult.Data.IsValid}, IsSealed: {validationResult.Data.IsSealed}");
                                     return new ElectionInfo
@@ -81,8 +82,9 @@ namespace VoteHomWebApp.Services
                                         Id = election.Id,
                                         Name = election.Title ?? election.Name ?? "Eleição",
                                         Title = election.Title ?? election.Name ?? "Eleição",
-                                        StartDate = DateTime.Parse(validationResult.Data.StartDate),
-                                        EndDate = DateTime.Parse(validationResult.Data.EndDate)
+                                        StartDate = ParseDateTimeFromAPI(validationResult.Data.StartDate),
+                                        EndDate = ParseDateTimeFromAPI(validationResult.Data.EndDate),
+                                        IsVotingPeriod = validationResult.Data.IsValid && !validationResult.Data.IsSealed
                                     };
                                 }
                             }
@@ -119,7 +121,7 @@ namespace VoteHomWebApp.Services
                 Console.WriteLine("Attempting to get election info using authentication flow for sealed election");
                 
                 // For any election, try to get complete info first
-                const int electionId = 9;
+                const int electionId = 10;
                 
                 // Try to get complete election details from /api/election/{electionId} first
                 Console.WriteLine($"Trying to get complete election info for election {electionId}");
@@ -143,9 +145,9 @@ namespace VoteHomWebApp.Services
                         Console.WriteLine($"Found sealed election: {electionId}, Status: {validationResult.Data.Status}");
                         Console.WriteLine($"Election dates from validation: '{validationResult.Data.StartDate}' to '{validationResult.Data.EndDate}'");
                         
-                        // Fix malformed timezone format (e.g., "3:00" should be "+03:00")
-                        string startDateFixed = FixTimezoneFormat(validationResult.Data.StartDate);
-                        string endDateFixed = FixTimezoneFormat(validationResult.Data.EndDate);
+                        // Use raw data from API without timezone formatting
+                        string startDateFixed = validationResult.Data.StartDate;
+                        string endDateFixed = validationResult.Data.EndDate;
                         
                         Console.WriteLine($"Original dates: start='{validationResult.Data.StartDate}' end='{validationResult.Data.EndDate}'");
                         Console.WriteLine($"Fixed date strings: start='{startDateFixed}' end='{endDateFixed}'");
@@ -153,8 +155,8 @@ namespace VoteHomWebApp.Services
                         DateTime startDate, endDate;
                         try
                         {
-                            startDate = DateTime.Parse(startDateFixed);
-                            endDate = DateTime.Parse(endDateFixed);
+                            startDate = ParseDateTimeFromAPI(startDateFixed);
+                            endDate = ParseDateTimeFromAPI(endDateFixed);
                             Console.WriteLine($"Parsed dates successfully: start={startDate:yyyy-MM-dd HH:mm:ss} end={endDate:yyyy-MM-dd HH:mm:ss}");
                         }
                         catch (Exception parseEx)
@@ -166,22 +168,25 @@ namespace VoteHomWebApp.Services
                             var startWithoutTz = validationResult.Data.StartDate.Split(new char[] { '+', '-' })[0];
                             var endWithoutTz = validationResult.Data.EndDate.Split(new char[] { '+', '-' })[0];
                             
-                            startDate = DateTime.Parse(startWithoutTz);
-                            endDate = DateTime.Parse(endWithoutTz);
+                            startDate = ParseDateTimeFromAPI(startWithoutTz);
+                            endDate = ParseDateTimeFromAPI(endWithoutTz);
                             Console.WriteLine($"Fallback parsing successful: start={startDate:yyyy-MM-dd HH:mm:ss} end={endDate:yyyy-MM-dd HH:mm:ss}");
                         }
                         
                         var electionInfo = new ElectionInfo
                         {
                             Id = electionId,
-                            Name = "Eleição Atualizada 2024", // Default name for sealed election
-                            Title = "Eleição Atualizada 2024",
+                            Name = "Eleicao teste 2025",
+                            Title = "Eleicao teste 2025",
                             StartDate = startDate,
-                            EndDate = endDate
+                            EndDate = endDate,
+                            IsVotingPeriod = DateTime.Now < endDate // Allow voting until device time reaches end_date
                         };
                         
                         Console.WriteLine($"Parsed sealed election dates: {electionInfo.StartDate:yyyy-MM-dd HH:mm:ss} to {electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}");
-                        Console.WriteLine($"Sealed election IsVotingPeriod: {electionInfo.IsVotingPeriod}");
+                        Console.WriteLine($"API validation data - CanVote: {validationResult.Data.CanVote}, IsInVotingPeriod: {validationResult.Data.IsInVotingPeriod}, IsValid: {validationResult.Data.IsValid}, IsActive: {validationResult.Data.IsActive}");
+                        Console.WriteLine($"Current device time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}, Election end time: {endDate:yyyy-MM-dd HH:mm:ss}");
+                        Console.WriteLine($"IsVotingPeriod calculation: {DateTime.Now:yyyy-MM-dd HH:mm:ss} < {endDate:yyyy-MM-dd HH:mm:ss} = {electionInfo.IsVotingPeriod}");
                         
                         return electionInfo;
                     }
@@ -239,9 +244,9 @@ namespace VoteHomWebApp.Services
                         }
                         
                         // Fallback to basic info from status endpoint
-                        // Fix malformed timezone format (e.g., "3:00" should be "+03:00")
-                        string startDateFixed = FixTimezoneFormat(statusResult.Data.StartDate);
-                        string endDateFixed = FixTimezoneFormat(statusResult.Data.EndDate);
+                        // Use raw data from API without timezone formatting
+                        string startDateFixed = statusResult.Data.StartDate;
+                        string endDateFixed = statusResult.Data.EndDate;
                         
                         Console.WriteLine($"Fixed date strings: '{startDateFixed}' to '{endDateFixed}'");
                         
@@ -250,8 +255,9 @@ namespace VoteHomWebApp.Services
                             Id = statusResult.Data.ElectionId,
                             Name = statusResult.Data.Title ?? "Eleição Atualizada 2024",
                             Title = statusResult.Data.Title ?? "Eleição Atualizada 2024", 
-                            StartDate = DateTime.Parse(startDateFixed),
-                            EndDate = DateTime.Parse(endDateFixed)
+                            StartDate = ParseDateTimeFromAPI(startDateFixed),
+                            EndDate = ParseDateTimeFromAPI(endDateFixed),
+                            IsVotingPeriod = statusResult.Data.CanVote
                         };
                         
                         Console.WriteLine($"Parsed election dates: {electionInfo.StartDate:yyyy-MM-dd HH:mm:ss} to {electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}");
@@ -431,9 +437,9 @@ namespace VoteHomWebApp.Services
                     {
                         Console.WriteLine($"Successfully got complete election: '{electionResult.Data.Title}' by '{electionResult.Data.CompanyName}'");
                         
-                        // Fix malformed timezone format
-                        string startDateFixed = FixTimezoneFormat(electionResult.Data.StartDate);
-                        string endDateFixed = FixTimezoneFormat(electionResult.Data.EndDate);
+                        // Use raw data from API without timezone formatting
+                        string startDateFixed = electionResult.Data.StartDate;
+                        string endDateFixed = electionResult.Data.EndDate;
                         
                         Console.WriteLine($"Complete election - Original: start='{electionResult.Data.StartDate}' end='{electionResult.Data.EndDate}'");
                         Console.WriteLine($"Complete election - Fixed: start='{startDateFixed}' end='{endDateFixed}'");
@@ -441,8 +447,8 @@ namespace VoteHomWebApp.Services
                         DateTime startDate, endDate;
                         try
                         {
-                            startDate = DateTime.Parse(startDateFixed);
-                            endDate = DateTime.Parse(endDateFixed);
+                            startDate = ParseDateTimeFromAPI(startDateFixed);
+                            endDate = ParseDateTimeFromAPI(endDateFixed);
                         }
                         catch (Exception parseEx)
                         {
@@ -451,8 +457,8 @@ namespace VoteHomWebApp.Services
                             var startWithoutTz = electionResult.Data.StartDate.Split(new char[] { '+', '-' })[0];
                             var endWithoutTz = electionResult.Data.EndDate.Split(new char[] { '+', '-' })[0];
                             
-                            startDate = DateTime.Parse(startWithoutTz);
-                            endDate = DateTime.Parse(endWithoutTz);
+                            startDate = ParseDateTimeFromAPI(startWithoutTz);
+                            endDate = ParseDateTimeFromAPI(endWithoutTz);
                             Console.WriteLine($"Complete election fallback: start={startDate:yyyy-MM-dd HH:mm:ss} end={endDate:yyyy-MM-dd HH:mm:ss}");
                         }
                         
@@ -462,7 +468,8 @@ namespace VoteHomWebApp.Services
                             Name = electionResult.Data.Title,
                             Title = electionResult.Data.Title,
                             StartDate = startDate,
-                            EndDate = endDate
+                            EndDate = endDate,
+                            IsVotingPeriod = true // If we got here, election is accessible via API
                         };
                         
                         Console.WriteLine($"Complete election: '{electionInfo.Name}' ({electionInfo.StartDate:yyyy-MM-dd} to {electionInfo.EndDate:yyyy-MM-dd})");
@@ -511,9 +518,9 @@ namespace VoteHomWebApp.Services
                     {
                         Console.WriteLine($"Successfully got complete election: '{electionResult.Data.Title}' by '{electionResult.Data.CompanyName}'");
                         
-                        // Fix malformed timezone format
-                        string startDateFixed = FixTimezoneFormat(electionResult.Data.StartDate);
-                        string endDateFixed = FixTimezoneFormat(electionResult.Data.EndDate);
+                        // Use raw data from API without timezone formatting
+                        string startDateFixed = electionResult.Data.StartDate;
+                        string endDateFixed = electionResult.Data.EndDate;
                         
                         Console.WriteLine($"Complete election - Original: start='{electionResult.Data.StartDate}' end='{electionResult.Data.EndDate}'");
                         Console.WriteLine($"Complete election - Fixed: start='{startDateFixed}' end='{endDateFixed}'");
@@ -521,8 +528,8 @@ namespace VoteHomWebApp.Services
                         DateTime startDate, endDate;
                         try
                         {
-                            startDate = DateTime.Parse(startDateFixed);
-                            endDate = DateTime.Parse(endDateFixed);
+                            startDate = ParseDateTimeFromAPI(startDateFixed);
+                            endDate = ParseDateTimeFromAPI(endDateFixed);
                         }
                         catch (Exception parseEx)
                         {
@@ -531,8 +538,8 @@ namespace VoteHomWebApp.Services
                             var startWithoutTz = electionResult.Data.StartDate.Split(new char[] { '+', '-' })[0];
                             var endWithoutTz = electionResult.Data.EndDate.Split(new char[] { '+', '-' })[0];
                             
-                            startDate = DateTime.Parse(startWithoutTz);
-                            endDate = DateTime.Parse(endWithoutTz);
+                            startDate = ParseDateTimeFromAPI(startWithoutTz);
+                            endDate = ParseDateTimeFromAPI(endWithoutTz);
                             Console.WriteLine($"Complete election fallback: start={startDate:yyyy-MM-dd HH:mm:ss} end={endDate:yyyy-MM-dd HH:mm:ss}");
                         }
                         
@@ -542,7 +549,8 @@ namespace VoteHomWebApp.Services
                             Name = electionResult.Data.Title,
                             Title = electionResult.Data.Title,
                             StartDate = startDate,
-                            EndDate = endDate
+                            EndDate = endDate,
+                            IsVotingPeriod = true // If we got here, election is accessible via API
                         };
                         
                         Console.WriteLine($"Complete election: '{electionInfo.Name}' ({electionInfo.StartDate:yyyy-MM-dd} to {electionInfo.EndDate:yyyy-MM-dd})");
@@ -585,10 +593,11 @@ namespace VoteHomWebApp.Services
                 var hoursPart = match.Groups[3].Value;
                 var minutesPart = match.Groups[4].Value;
                 
-                // Default to + if no sign provided
+                // For Brazil timezone (America/Sao_Paulo), default to - if no sign provided
                 if (string.IsNullOrEmpty(signPart))
                 {
-                    signPart = "+";
+                    signPart = "-";
+                    Console.WriteLine("Inferred timezone sign as '-' for Brazil timezone");
                 }
                 
                 // Pad hours to 2 digits
@@ -600,10 +609,11 @@ namespace VoteHomWebApp.Services
             }
             
             // Fallback: Handle specific known patterns
+            // For Brazil timezone (America/Sao_Paulo), 00003:00 should be -03:00
             if (dateString.Contains("00003:00"))
             {
-                var fixedDate = dateString.Replace("00003:00", "+03:00");
-                Console.WriteLine($"Fixed known pattern from {dateString} to {fixedDate}");
+                var fixedDate = dateString.Replace("00003:00", "-03:00");
+                Console.WriteLine($"Fixed known pattern from {dateString} to {fixedDate} (Brazil timezone)");
                 return fixedDate;
             }
             
@@ -616,6 +626,149 @@ namespace VoteHomWebApp.Services
             
             Console.WriteLine($"No timezone fix needed for: {dateString}");
             return dateString;
+        }
+
+        private async Task<DateTime> GetServerTimeAsync()
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync("/api/system/time");
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var serverTimeResponse = JsonConvert.DeserializeObject<ApiResponse<ServerTimeDto>>(content);
+                    if (serverTimeResponse?.Data != null && !string.IsNullOrEmpty(serverTimeResponse.Data.CurrentTime))
+                    {
+                        var serverTime = ParseDateTimeFromAPI(serverTimeResponse.Data.CurrentTime);
+                        Console.WriteLine($"Retrieved server time: {serverTime:yyyy-MM-dd HH:mm:ss}");
+                        return serverTime;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting server time: {ex.Message}");
+            }
+            
+            return DateTime.Now;
+        }
+
+        private async Task<DateTime> GetCurrentTimeAsync()
+        {
+            // Try to get server time first, fallback to local time
+            var serverTime = await GetServerTimeAsync();
+            Console.WriteLine($"Using current time: {serverTime:yyyy-MM-dd HH:mm:ss} (from server: {serverTime != DateTime.Now})");
+            return serverTime;
+        }
+
+        public async Task<(string Status, string Message)> GetElectionStatusMessageAsync(int electionId)
+        {
+            try
+            {
+                // Handle case where no election exists
+                if (electionId == 0)
+                {
+                    return ("not_found", "Nenhuma eleição disponível para votação no momento.");
+                }
+                
+                var electionInfo = await GetElectionInfoAsync();
+                if (electionInfo == null || electionInfo.Id != electionId)
+                {
+                    return ("not_found", "Eleição não encontrada ou não disponível.");
+                }
+
+                var currentTime = await GetCurrentTimeAsync();
+                
+                // Check if election hasn't started yet
+                if (currentTime < electionInfo.StartDate)
+                {
+                    var message = $"A eleição ainda não iniciou.\n\nPeríodo de votação:\n\n📅 Início: {electionInfo.StartDate:dd/MM/yyyy} às {electionInfo.StartDate:HH:mm}\n📅 Término: {electionInfo.EndDate:dd/MM/yyyy} às {electionInfo.EndDate:HH:mm}\n\n⏰ Aguarde até {electionInfo.StartDate:dd/MM/yyyy} às {electionInfo.StartDate:HH:mm} para votar.";
+                    return ("not_started", message);
+                }
+                
+                // Check if election has ended
+                if (currentTime > electionInfo.EndDate)
+                {
+                    var message = $"A eleição foi encerrada.\n\nPeríodo de votação foi:\n\n📅 Início: {electionInfo.StartDate:dd/MM/yyyy} às {electionInfo.StartDate:HH:mm}\n📅 Término: {electionInfo.EndDate:dd/MM/yyyy} às {electionInfo.EndDate:HH:mm}\n\n⏰ O prazo para votação expirou em {electionInfo.EndDate:dd/MM/yyyy} às {electionInfo.EndDate:HH:mm}.";
+                    return ("ended", message);
+                }
+                
+                // Election is active
+                var activeMessage = $"Eleição ativa.\n\nPeríodo de votação:\n\n📅 Início: {electionInfo.StartDate:dd/MM/yyyy} às {electionInfo.StartDate:HH:mm}\n📅 Término: {electionInfo.EndDate:dd/MM/yyyy} às {electionInfo.EndDate:HH:mm}\n\n⏰ Você pode votar até {electionInfo.EndDate:dd/MM/yyyy} às {electionInfo.EndDate:HH:mm}.";
+                return ("active", activeMessage);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting election status message: {ex.Message}");
+                return ("error", "Erro ao verificar status da eleição. Tente novamente.");
+            }
+        }
+
+        private DateTime ParseDateTimeFromAPI(string dateString)
+        {
+            if (string.IsNullOrEmpty(dateString))
+                return DateTime.Now;
+
+            Console.WriteLine($"Parsing datetime from API: {dateString}");
+
+            try
+            {
+                // First, try to clean the malformed timezone format using improved regex
+                var cleanedString = FixTimezoneFormat(dateString);
+
+                Console.WriteLine($"Cleaned datetime string: {cleanedString}");
+
+                // Try to parse as DateTimeOffset and convert to local time for consistency
+                if (DateTimeOffset.TryParse(cleanedString, out DateTimeOffset resultOffset))
+                {
+                    var localResult = resultOffset.ToLocalTime().DateTime;
+                    Console.WriteLine($"Successfully parsed with timezone awareness:");
+                    Console.WriteLine($"  Original: {dateString}");
+                    Console.WriteLine($"  Cleaned: {cleanedString}");
+                    Console.WriteLine($"  UTC: {resultOffset.UtcDateTime:yyyy-MM-dd HH:mm:ss}");
+                    Console.WriteLine($"  Local: {localResult:yyyy-MM-dd HH:mm:ss}");
+                    Console.WriteLine($"  Offset: {resultOffset.Offset}");
+                    return localResult;
+                }
+
+                // Try to parse the cleaned string as local time
+                if (DateTime.TryParse(cleanedString, out DateTime result))
+                {
+                    Console.WriteLine($"Successfully parsed as local time: {result:yyyy-MM-dd HH:mm:ss}");
+                    return result;
+                }
+
+                // If that fails, try removing timezone information completely
+                var withoutTimezone = dateString.Split(new char[] { '+', '-' })[0];
+                Console.WriteLine($"Trying without timezone: {withoutTimezone}");
+                
+                if (DateTime.TryParse(withoutTimezone, out DateTime resultNoTz))
+                {
+                    Console.WriteLine($"Successfully parsed without timezone: {resultNoTz:yyyy-MM-dd HH:mm:ss}");
+                    return resultNoTz;
+                }
+
+                // Last resort: try to extract just the date/time portion
+                var match = System.Text.RegularExpressions.Regex.Match(dateString, @"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)");
+                if (match.Success)
+                {
+                    var dateTimePart = match.Groups[1].Value;
+                    Console.WriteLine($"Extracted datetime part: {dateTimePart}");
+                    
+                    if (DateTime.TryParse(dateTimePart, out DateTime resultExtracted))
+                    {
+                        Console.WriteLine($"Successfully parsed extracted part: {resultExtracted:yyyy-MM-dd HH:mm:ss}");
+                        return resultExtracted;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing datetime '{dateString}': {ex.Message}");
+            }
+
+            Console.WriteLine($"All parsing attempts failed for '{dateString}', using current time");
+            return DateTime.Now;
         }
 
         public async Task<List<Candidate>> GetCandidatesAsync(int positionId)
@@ -823,9 +976,9 @@ namespace VoteHomWebApp.Services
                                     var electionInfo = await GetElectionInfoAsync();
                                     if (electionInfo != null && electionInfo.Id == electionId)
                                     {
-                                        var now = DateTime.Now;
-                                        var isActuallyExpired = now > electionInfo.EndDate;
-                                        Console.WriteLine($"API says election expired, but actual check: now={now:yyyy-MM-dd HH:mm:ss}, end={electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}, expired={isActuallyExpired}");
+                                        var currentTime = await GetCurrentTimeAsync();
+                                        var isActuallyExpired = currentTime > electionInfo.EndDate;
+                                        Console.WriteLine($"API says election expired, but actual check: now={currentTime:yyyy-MM-dd HH:mm:ss}, end={electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}, expired={isActuallyExpired}");
                                         
                                         if (!isActuallyExpired)
                                         {
@@ -833,17 +986,28 @@ namespace VoteHomWebApp.Services
                                             return (false, string.Empty, string.Empty, "Erro de sincronização de horário. A eleição pode estar ativa. Tente novamente em alguns minutos");
                                         }
                                     }
+                                    
+                                    // Get detailed status message
+                                    var (status, message) = await GetElectionStatusMessageAsync(electionId);
+                                    return (false, string.Empty, string.Empty, message);
                                 }
                                 catch (Exception ex)
                                 {
                                     Console.WriteLine($"Error double-checking election dates: {ex.Message}");
+                                    return (false, string.Empty, string.Empty, "A eleição já foi encerrada. O prazo para votação expirou");
                                 }
-                                
-                                return (false, string.Empty, string.Empty, "A eleição já foi encerrada. O prazo para votação expirou");
                             }
                             else if (errorMessage.Contains("eleição") && (errorMessage.Contains("não iniciou") || errorMessage.Contains("not started") || errorMessage.Contains("antes do início") || errorMessage.Contains("before start")))
                             {
-                                return (false, string.Empty, string.Empty, "A eleição ainda não iniciou. Aguarde o horário de abertura");
+                                try
+                                {
+                                    var (status, message) = await GetElectionStatusMessageAsync(electionId);
+                                    return (false, string.Empty, string.Empty, message);
+                                }
+                                catch
+                                {
+                                    return (false, string.Empty, string.Empty, "A eleição ainda não iniciou. Aguarde o horário de abertura");
+                                }
                             }
                             else if (errorMessage.Contains("eleição") && (errorMessage.Contains("não disponível") || errorMessage.Contains("not available") || errorMessage.Contains("inativa") || errorMessage.Contains("inactive")))
                             {
@@ -876,7 +1040,15 @@ namespace VoteHomWebApp.Services
                         if (errorContentLower.Contains("time") || errorContentLower.Contains("period") || errorContentLower.Contains("expired") || 
                             errorContentLower.Contains("tempo") || errorContentLower.Contains("período") || errorContentLower.Contains("expirado"))
                         {
-                            return (false, string.Empty, string.Empty, "A eleição já foi encerrada ou ainda não iniciou");
+                            try
+                            {
+                                var (status, message) = await GetElectionStatusMessageAsync(electionId);
+                                return (false, string.Empty, string.Empty, message);
+                            }
+                            catch
+                            {
+                                return (false, string.Empty, string.Empty, "A eleição já foi encerrada ou ainda não iniciou");
+                            }
                         }
                     }
                     
@@ -1218,7 +1390,15 @@ namespace VoteHomWebApp.Services
                             }
                             else if (apiResponse.Data.Status == "draft")
                             {
-                                return (false, "A eleição ainda não foi iniciada");
+                                try
+                                {
+                                    var (status, message) = await GetElectionStatusMessageAsync(electionId);
+                                    return (false, message);
+                                }
+                                catch
+                                {
+                                    return (false, "A eleição ainda não foi iniciada");
+                                }
                             }
                             else if (!string.IsNullOrEmpty(apiResponse.Data.ValidationMessage))
                             {
@@ -1263,13 +1443,15 @@ namespace VoteHomWebApp.Services
             {
                 Console.WriteLine($"Checking if election {electionId} is expired");
                 
+                // Get current time (server time preferred, local time as fallback)
+                var currentTime = await GetCurrentTimeAsync();
+                
                 // First, try to get complete election info
                 var electionInfo = await GetElectionInfoAsync();
                 if (electionInfo != null && electionInfo.Id == electionId)
                 {
-                    var now = DateTime.Now;
-                    var expired = now > electionInfo.EndDate;
-                    Console.WriteLine($"Election {electionId} - Current time: {now:yyyy-MM-dd HH:mm:ss}, End time: {electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
+                    var expired = currentTime > electionInfo.EndDate;
+                    Console.WriteLine($"Election {electionId} - Current time: {currentTime:yyyy-MM-dd HH:mm:ss}, End time: {electionInfo.EndDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
                     return expired;
                 }
                 
@@ -1285,21 +1467,20 @@ namespace VoteHomWebApp.Services
                         
                         if (electionResult?.Data != null && !string.IsNullOrEmpty(electionResult.Data.EndDate))
                         {
-                            var endDateFixed = FixTimezoneFormat(electionResult.Data.EndDate);
+                            var endDateFixed = electionResult.Data.EndDate;
                             DateTime endDate;
                             try
                             {
-                                endDate = DateTime.Parse(endDateFixed);
+                                endDate = ParseDateTimeFromAPI(endDateFixed);
                             }
                             catch (Exception parseEx)
                             {
                                 Console.WriteLine($"Parse error for end date '{endDateFixed}': {parseEx.Message}");
                                 var endWithoutTz = electionResult.Data.EndDate.Split(new char[] { '+', '-' })[0];
-                                endDate = DateTime.Parse(endWithoutTz);
+                                endDate = ParseDateTimeFromAPI(endWithoutTz);
                             }
-                            var now = DateTime.Now;
-                            var expired = now > endDate;
-                            Console.WriteLine($"Election {electionId} (direct API) - Current time: {now:yyyy-MM-dd HH:mm:ss}, End time: {endDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
+                            var expired = currentTime > endDate;
+                            Console.WriteLine($"Election {electionId} (direct API) - Current time: {currentTime:yyyy-MM-dd HH:mm:ss}, End time: {endDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
                             return expired;
                         }
                     }
@@ -1319,21 +1500,20 @@ namespace VoteHomWebApp.Services
                     
                     if (validationResult?.Data != null && !string.IsNullOrEmpty(validationResult.Data.EndDate))
                     {
-                        var endDateFixed = FixTimezoneFormat(validationResult.Data.EndDate);
+                        var endDateFixed = validationResult.Data.EndDate;
                         DateTime endDate;
                         try
                         {
-                            endDate = DateTime.Parse(endDateFixed);
+                            endDate = ParseDateTimeFromAPI(endDateFixed);
                         }
                         catch (Exception parseEx)
                         {
                             Console.WriteLine($"Parse error for validation end date '{endDateFixed}': {parseEx.Message}");
                             var endWithoutTz = validationResult.Data.EndDate.Split(new char[] { '+', '-' })[0];
-                            endDate = DateTime.Parse(endWithoutTz);
+                            endDate = ParseDateTimeFromAPI(endWithoutTz);
                         }
-                        var now = DateTime.Now;
-                        var expired = now > endDate;
-                        Console.WriteLine($"Election {electionId} (validation) - Current time: {now:yyyy-MM-dd HH:mm:ss}, End time: {endDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
+                        var expired = currentTime > endDate;
+                        Console.WriteLine($"Election {electionId} (validation) - Current time: {currentTime:yyyy-MM-dd HH:mm:ss}, End time: {endDate:yyyy-MM-dd HH:mm:ss}, Expired: {expired}");
                         return expired;
                     }
                 }
@@ -1359,7 +1539,7 @@ namespace VoteHomWebApp.Services
                     var loginData = new { 
                         cpf = "12345678901", 
                         password = "123456", 
-                        electionId = 9 
+                        electionId = 10
                     };
                     
                     var loginContent = new StringContent(JsonConvert.SerializeObject(loginData), Encoding.UTF8, "application/json");
@@ -2156,5 +2336,12 @@ namespace VoteHomWebApp.Services
         public int CompanyId { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public string CompanyCnpj { get; set; } = string.Empty;
+    }
+
+    public class ServerTimeDto
+    {
+        public string CurrentTime { get; set; } = string.Empty;
+        public string Timezone { get; set; } = string.Empty;
+        public long Timestamp { get; set; }
     }
 }

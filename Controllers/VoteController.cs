@@ -24,69 +24,50 @@ namespace VoteHomWebApp.Controllers
 
         public async Task<IActionResult> Index()
         {
+            // Redirecionar sempre para a tela pré-login
+            return await PreLogin();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PreLogin()
+        {
+            _logger.LogInformation("Accessing PreLogin - checking election status");
+            
             var electionInfo = await _electionService.GetElectionInfoAsync();
             
-            // Check if electionInfo is null first
             if (electionInfo == null)
             {
-                ViewBag.ErrorMessage = "Nenhuma eleição disponível no momento. Verifique se há eleições ativas no sistema.";
-                return View("Welcome", new ElectionInfo { Name = "Sistema de Votação", Id = 0, StartDate = DateTime.Now, EndDate = DateTime.Now });
+                _logger.LogWarning("No election found");
+                ViewBag.StatusMessage = "Nenhuma eleição disponível para votação no momento.";
+                ViewBag.ElectionStatus = "not_found";
+                return View("PreLogin", new ElectionInfo { Name = "Sistema de Votação", Id = 0, StartDate = DateTime.Now, EndDate = DateTime.Now });
             }
+
+            // Obter status detalhado da eleição
+            var (status, message) = await _electionService.GetElectionStatusMessageAsync(electionInfo.Id);
+            ViewBag.StatusMessage = message;
+            ViewBag.ElectionStatus = status;
             
-            if (!electionInfo.IsVotingPeriod)
-            {
-                var now = DateTime.Now;
-                if (now < electionInfo.StartDate)
-                {
-                    ViewBag.StatusMessage = $"A eleição não está no período de votação e estará liberada a partir de {electionInfo.StartDate:dd/MM/yyyy HH:mm}.";
-                }
-                else if (now > electionInfo.EndDate)
-                {
-                    ViewBag.StatusMessage = "A eleição já foi encerrada. O prazo para votação expirou.";
-                }
-                else
-                {
-                    ViewBag.StatusMessage = "A eleição não está disponível para votação no momento.";
-                }
-                return View("Welcome", electionInfo);
-            }
-
-            if (!User.Identity?.IsAuthenticated ?? false)
-            {
-                return RedirectToAction("Login");
-            }
-
-            return RedirectToAction("Vote");
+            _logger.LogInformation("Election {ElectionId} status: {Status}", electionInfo.Id, status);
+            
+            return View("PreLogin", electionInfo);
         }
 
         [HttpGet]
         public async Task<IActionResult> Login()
         {
             var electionInfo = await _electionService.GetElectionInfoAsync();
-            if (electionInfo == null)
-            {
-                TempData["ErrorMessage"] = "Nenhuma eleição disponível para votação no momento.";
-                return RedirectToAction("Index");
-            }
             
-            if (!electionInfo.IsVotingPeriod)
+            // Se não há eleição ou não está ativa, redirecionar para PreLogin
+            if (electionInfo == null || !electionInfo.IsVotingPeriod)
             {
-                var now = DateTime.Now;
-                if (now < electionInfo.StartDate)
-                {
-                    TempData["ErrorMessage"] = $"A eleição não está no período de votação e estará liberada a partir de {electionInfo.StartDate:dd/MM/yyyy HH:mm}.";
-                }
-                else if (now > electionInfo.EndDate)
-                {
-                    TempData["ErrorMessage"] = "A eleição já foi encerrada. O prazo para votação expirou.";
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = "A eleição não está no período de votação.";
-                }
-                return RedirectToAction("Index");
+                _logger.LogInformation("Login access denied - redirecting to PreLogin. Election active: {IsActive}", 
+                    electionInfo?.IsVotingPeriod ?? false);
+                return RedirectToAction("PreLogin");
             }
 
+            // Eleição ativa - mostrar formulário de login
+            _logger.LogInformation("Election active - showing login form. ElectionId: {ElectionId}", electionInfo.Id);
             return View();
         }
 
@@ -103,32 +84,15 @@ namespace VoteHomWebApp.Controllers
                     return View(model);
                 }
 
-                _logger.LogInformation("Getting election info");
+                _logger.LogInformation("Getting election info for login POST");
                 var electionInfo = await _electionService.GetElectionInfoAsync();
-                if (electionInfo == null)
-                {
-                    _logger.LogWarning("No valid elections found");
-                    ModelState.AddModelError("", "Nenhuma eleição disponível para votação no momento. Verifique se há eleições ativas.");
-                    return View(model);
-                }
                 
-                if (!electionInfo.IsVotingPeriod)
+                // Se não há eleição ou não está ativa, redirecionar para PreLogin
+                if (electionInfo == null || !electionInfo.IsVotingPeriod)
                 {
-                    _logger.LogWarning("Election is not in voting period");
-                    var now = DateTime.Now;
-                    if (now < electionInfo.StartDate)
-                    {
-                        ModelState.AddModelError("", $"A eleição não está no período de votação e estará liberada a partir de {electionInfo.StartDate:dd/MM/yyyy HH:mm}.");
-                    }
-                    else if (now > electionInfo.EndDate)
-                    {
-                        ModelState.AddModelError("", "A eleição já foi encerrada. O prazo para votação expirou.");
-                    }
-                    else
-                    {
-                        ModelState.AddModelError("", "A eleição não está no período de votação.");
-                    }
-                    return View(model);
+                    _logger.LogWarning("Login POST blocked - redirecting to PreLogin. Election active: {IsActive}", 
+                        electionInfo?.IsVotingPeriod ?? false);
+                    return RedirectToAction("PreLogin");
                 }
 
                 _logger.LogInformation("Validating election {ElectionId}", electionInfo.Id);
@@ -156,7 +120,7 @@ namespace VoteHomWebApp.Controllers
                         
                         if (!isActuallyExpired)
                         {
-                            ModelState.AddModelError("", "Detectado possível problema de sincronização de horário no servidor. A eleição parece estar ativa. Tente novamente em alguns minutos ou contate o suporte.");
+                            ModelState.AddModelError("", "Detectado possível problema de sincronização de horário no servidor. A eleição parece estar ativa. Aguarde alguns minutos e tente novamente. Se o problema persistir, contate o suporte técnico.");
                         }
                         else
                         {
@@ -169,7 +133,8 @@ namespace VoteHomWebApp.Controllers
                         bool isExpired = await _electionService.IsElectionExpiredAsync(electionInfo.Id);
                         if (isExpired)
                         {
-                            ModelState.AddModelError("", "A eleição já foi encerrada. O prazo para votação expirou.");
+                            var (status, message) = await _electionService.GetElectionStatusMessageAsync(electionInfo.Id);
+                            ModelState.AddModelError("", message);
                         }
                         else
                         {
@@ -220,6 +185,14 @@ namespace VoteHomWebApp.Controllers
             try
             {
                 var electionInfo = await _electionService.GetElectionInfoAsync();
+                
+                // Bloquear acesso se a eleição não estiver ativa
+                if (electionInfo == null || !electionInfo.IsVotingPeriod)
+                {
+                    _logger.LogWarning("SelectPosition access blocked - election not active");
+                    await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    return RedirectToAction("PreLogin");
+                }
                 var token = User.FindFirst("access_token")?.Value ?? "";
                 var voterCpf = User.FindFirst("CPF")?.Value ?? "";
                 
@@ -317,6 +290,14 @@ namespace VoteHomWebApp.Controllers
         public async Task<IActionResult> Vote(int positionId, int currentStep = 1)
         {
             var electionInfo = await _electionService.GetElectionInfoAsync();
+            
+            // Bloquear acesso se a eleição não estiver ativa
+            if (electionInfo == null || !electionInfo.IsVotingPeriod)
+            {
+                _logger.LogWarning("Vote access blocked - election not active");
+                await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                return RedirectToAction("PreLogin");
+            }
             
             // Check with API if this election requires multiple voting
             var (hasMultiplePositions, requiredMethod, methodMessage) = await _electionService.CheckMultiplePositionsAsync(electionInfo.Id);

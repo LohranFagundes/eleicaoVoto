@@ -7,13 +7,6 @@ namespace VoteHomWebApp.Models
         public string Title { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public bool IsVotingPeriod
-        {
-            get
-            {
-                var now = DateTime.Now;
-                return now >= StartDate && now <= EndDate;
-            }
-        }
+        public bool IsVotingPeriod { get; set; } = true;
     }
 }

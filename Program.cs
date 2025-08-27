@@ -48,8 +48,9 @@ app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
+
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Vote}/{action=Index}/{id?}");
+    pattern: "{controller=Vote}/{action=PreLogin}/{id?}");
 
 app.Run();

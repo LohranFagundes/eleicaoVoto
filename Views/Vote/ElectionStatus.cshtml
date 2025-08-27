@@ -1,0 +1,103 @@
+@model VoteHomWebApp.Models.ElectionInfo
+@{
+    ViewData["Title"] = "Status da Eleição - Sistema de Votação";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <div class="funcorsan-logo mb-4" style="font-size: 2rem;">
+                    <div style="color: #0066cc;">◆◆</div>
+                    <div style="font-size: 1.5rem; margin-top: 10px;">FUNCORSAN</div>
+                    <div style="font-size: 0.9rem; color: #666; font-weight: normal;">Seu futuro mais presente</div>
+                </div>
+
+                <h2 class="mb-4">Sistema de Votação</h2>
+                <h3 class="mb-4">@Model.Name</h3>
+                
+                @if (!string.IsNullOrEmpty(ViewBag.StatusMessage as string))
+                {
+                    var electionStatus = ViewBag.ElectionStatus as string ?? "info";
+                    var alertClass = electionStatus switch 
+                    {
+                        "not_started" => "alert-warning",
+                        "ended" => "alert-danger", 
+                        "active" => "alert-success",
+                        _ => "alert-info"
+                    };
+                    var iconClass = electionStatus switch 
+                    {
+                        "not_started" => "fas fa-clock",
+                        "ended" => "fas fa-times-circle", 
+                        "active" => "fas fa-check-circle",
+                        _ => "fas fa-info-circle"
+                    };
+                    
+                    <div class="alert @alertClass alert-lg">
+                        <i class="@iconClass fa-2x mb-3"></i>
+                        <div style="white-space: pre-line; font-size: 1.1em;">@ViewBag.StatusMessage</div>
+                    </div>
+                }
+                
+                @if (ViewBag.ElectionStatus as string == "not_started")
+                {
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Sistema de Login Bloqueado</strong><br>
+                        Os campos de login e senha serão liberados automaticamente quando a eleição iniciar.
+                    </div>
+                }
+                else if (ViewBag.ElectionStatus as string == "ended")
+                {
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-lock"></i>
+                        <strong>Votação Encerrada</strong><br>
+                        O período de votação foi finalizado. Não é mais possível realizar login.
+                    </div>
+                }
+
+                <div class="mt-4">
+                    <button class="btn btn-primary btn-lg" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i> Atualizar Status
+                    </button>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> Página será atualizada automaticamente em 30 segundos
+                        </small>
+                    </div>
+                </div>
+
+                @if (ViewBag.ElectionStatus as string == "active")
+                {
+                    <div class="mt-4">
+                        <a href="@Url.Action("Login", "Vote")" class="btn btn-success btn-lg">
+                            <i class="fas fa-sign-in-alt"></i> Acessar Sistema de Login
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Auto-refresh da página a cada 30 segundos para verificar se a eleição foi ativada
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+        
+        // Mostrar contador regressivo até o próximo refresh
+        let countdown = 30;
+        setInterval(function() {
+            countdown--;
+            if (countdown > 0) {
+                const countdownElement = document.querySelector('.text-muted small');
+                if (countdownElement) {
+                    countdownElement.innerHTML = '<i class="fas fa-clock"></i> Página será atualizada automaticamente em ' + countdown + ' segundos';
+                }
+            }
+        }, 1000);
+    </script>
+}
